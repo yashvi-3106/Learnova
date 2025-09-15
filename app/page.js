@@ -23,10 +23,10 @@ export default function AboutPage() {
     </div>
     <div className="min-h-screen absolute z-50 top-0 w-full h-full">
       <Navbar />
-      <section className="py-20 px-4 sm:px-6 lg:px-8 flex justify-center">
+      <section className="pt-20 px-4 sm:px-6 lg:px-8 flex justify-center">
       <SplitText
           text="About "
-          className="text-2xl max-w-4xl mx-autotext-4xl md:text-5xl font-bold text-white mb-6 text-balance text-center"
+          className="text-4xl max-w-4xl mx-autotext-4xl md:text-5xl font-bold text-white text-balance text-center"
           delay={100}
           duration={0.6}
           ease="power3.out"
@@ -41,7 +41,7 @@ export default function AboutPage() {
         <div className="w-5"></div>
         <SplitText
           text="Learnova"
-          className="text-2xl max-w-4xl text-accent mx-autotext-4xl md:text-5xl font-bold mb-6 text-balance text-center"
+          className="text-4xl max-w-4xl text-accent mx-autotext-4xl md:text-5xl font-bold mb-6 text-balance text-center"
           delay={200}
           duration={0.5}
           ease="power3.out"
@@ -68,7 +68,7 @@ export default function AboutPage() {
       </section>
 
       {/* Mission Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-10 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>

@@ -60,9 +60,9 @@ export function Navbar() {
               className="text-foreground"
             >
               {isMenuOpen ? (
-                <X className="h-6 w-6" />
+                <X className="h-7 w-7 text-white" />
               ) : (
-                <Menu className="h-6 w-6" />
+                <Menu className="h-7 w-7 text-white" />
               )}
             </Button>
           </div>
@@ -71,40 +71,40 @@ export function Navbar() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-background border-t border-border">
+            <div className="px-2 pt-2 pb-3 space-y-1 dark:bg-background border-t border-border">
               <Link
                 href="/"
-                className="block px-3 py-2 text-foreground hover:text-accent transition-colors duration-200"
+                className="block px-3 py-2 text-white hover:text-accent transition-colors duration-200"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Home
               </Link>
               <Link
                 href="/activity"
-                className="block px-3 py-2 text-foreground hover:text-accent transition-colors duration-200"
+                className="block px-3 py-2 text-white hover:text-accent transition-colors duration-200"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Activity
               </Link>
               <Link
                 href="/about"
-                className="block px-3 py-2 text-foreground hover:text-accent transition-colors duration-200"
+                className="block px-3 py-2 text-white hover:text-accent transition-colors duration-200"
                 onClick={() => setIsMenuOpen(false)}
               >
                 About
               </Link>
               <Link
                 href="/contact"
-                className="block px-3 py-2 text-foreground hover:text-accent transition-colors duration-200"
+                className="block px-3 py-2 text-white hover:text-accent transition-colors duration-200"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Contact
               </Link>
               <div className="px-3 py-2">
                 <Link href="/attendence">
-                <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                  Make Attendence
-                </Button>
+                  <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                    Make Attendence
+                  </Button>
                 </Link>
               </div>
             </div>
