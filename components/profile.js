@@ -25,7 +25,7 @@ export default function ProfilePage() {
       logEvent(analytics, "page_view", { page: "profile" });
     }
   }, []);
-  const { user } = useAuth();
+  const { user ,loading } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const fileInputRef = useRef(null);
