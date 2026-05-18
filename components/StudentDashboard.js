@@ -1,3 +1,4 @@
+import SkeletonCard from "@/components/ui/SkeletonCard";
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
@@ -30,6 +31,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Navbar } from "./Navbar";
+import AttendanceHeatmap from "./AttendanceHeatmap";
 import { useAuth } from "@/hooks/useAuth";
 
 const StudentDashboard = () => {
@@ -479,6 +481,7 @@ const StudentDashboard = () => {
                   Target: 75% minimum required
                 </div>
               </div>
+              <AttendanceHeatmap recentActivity={recentActivity} />
             </div>
 
             {/* Recent Activity */}

@@ -1,20 +1,18 @@
 import { connectDb } from "@/lib/mongodb";
 import { verifyFirebaseToken } from "@/lib/firebase-admin";
+import { jsonError, jsonSuccess } from "@/lib/api-response";
 
 export async function GET(request) {
   try {
-    // Get the authorization header
     const authorization = request.headers.get("authorization");
     const token = authorization?.split(" ")[1];
 
-    // Verify Firebase token
     const decodedToken = await verifyFirebaseToken(token);
 
     if (!decodedToken) {
-      return Response.json({ message: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Connect to database
     const db = await connectDb();
 
     const exceptions = await db
@@ -23,9 +21,15 @@ export async function GET(request) {
       .sort({ createdAt: -1 })
       .toArray();
 
-    return Response.json({ exceptions }, { status: 200 });
+    return Response.json(
+      {
+        success: true,
+        data: exceptions,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Exception fetch error:", error);
-    return Response.json({ message: "Internal server error" }, { status: 500 });
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
