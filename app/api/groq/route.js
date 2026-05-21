@@ -29,6 +29,14 @@ const isRateLimited = (userId) => {
   return false;
 };
 
+/**
+ * Handles incoming chat completions requests using the Groq AI SDK.
+ * Secured via Firebase Bearer Token authentication to prevent API resource abuse,
+ * billing spikes, and unauthorized client consumption. Includes per-user rate limiting.
+ * 
+ * @param {Request} request - The incoming HTTP POST request.
+ * @returns {Promise<Response>} JSON response containing completion results or an error payload.
+ */
 export async function POST(request) {
   try {
     const authorization = request.headers.get("authorization");

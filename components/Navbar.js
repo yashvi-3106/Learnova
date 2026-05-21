@@ -332,21 +332,9 @@ export function Navbar() {
                 );
               })}
 
-              { true ? (
+              { isAuthenticated ? (
                 <div className="flex items-center space-x-2 md:space-x-4 ml-2 md:ml-6">
-                 <button
-                  onClick={() =>
-                    addNotification({
-                      message: "Test notification works!",
-                      time: "Just now",
-                      read: false,
-                      type: "success",
-                    })
-                  }
-                  className="bg-blue-500 text-white px-3 py-1 rounded"
-                >
-                  Test Notification
-                </button>
+                
                   <Button asChild className="hidden md:block relative bg-gradient-to-r from-accent to-blue-500 hover:from-accent/90 hover:to-blue-600 text-white font-medium shadow-lg hover:shadow-2xl hover:shadow-accent/30 transition-all duration-300 hover:scale-105 group overflow-hidden">
                     <Link href="/attendance">
                       <span className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

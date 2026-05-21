@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebaseConfig";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 /**
@@ -60,7 +60,7 @@ export const useAuth = () => {
   */
   const signOut = async () => {
     try {
-      await auth.signOut();
+      await firebaseSignOut(auth);
       setUser(null);
       setUserProfile(null);
     } catch (err) {
