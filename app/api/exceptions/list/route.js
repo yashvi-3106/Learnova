@@ -41,11 +41,16 @@ export async function GET(request) {
       Math.max(1, parseInt(searchParams.get("limit") || "10", 10))
     );
 
-    // Search
-    const search = searchParams.get("search") || "";
+    // Search — escape metacharacters and cap length to prevent ReDoS
+    const rawSearch = searchParams.get("search") || "";
+    const search = escapeRegex(rawSearch);
 
-    // Sorting
-    const sortBy = searchParams.get("sortBy") || "createdAt";
+    // Sorting — validate against an explicit allowlist to prevent field-name injection
+    const sortBy = sanitizeSortField(
+      searchParams.get("sortBy"),
+      ALLOWED_SORT_FIELDS,
+      "createdAt"
+    );
     const sortOrder = searchParams.get("sortOrder") === "asc" ? 1 : -1;
 
     // Validation
