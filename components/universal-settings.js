@@ -32,6 +32,41 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "./Navbar";
 
+const SettingCard = ({ children, title, description }) => (
+  <div className="bg-black/20 backdrop-blur-2xl rounded-2xl border border-white/10 p-6 hover:bg-black/30 transition-all duration-300">
+    <div className="mb-4">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      {description && (
+        <p className="text-white/60 text-sm mt-1">{description}</p>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+const ToggleSwitch = ({ enabled, onChange, label, description }) => (
+  <div className="flex items-center justify-between py-3">
+    <div className="flex-1">
+      <p className="text-white font-medium">{label}</p>
+      {description && <p className="text-white/60 text-sm">{description}</p>}
+    </div>
+    <button
+      onClick={() => onChange(!enabled)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+        enabled
+          ? "bg-gradient-to-r from-blue-500 to-purple-600"
+          : "bg-white/20"
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+          enabled ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+  </div>
+);
+
 export default function UniversalSettings() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("profile");
@@ -284,41 +319,6 @@ export default function UniversalSettings() {
     });
     setHasChanges(false);
   };
-
-  const SettingCard = ({ children, title, description }) => (
-    <div className="bg-black/20 backdrop-blur-2xl rounded-2xl border border-white/10 p-6 hover:bg-black/30 transition-all duration-300">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        {description && (
-          <p className="text-white/60 text-sm mt-1">{description}</p>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-
-  const ToggleSwitch = ({ enabled, onChange, label, description }) => (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex-1">
-        <p className="text-white font-medium">{label}</p>
-        {description && <p className="text-white/60 text-sm">{description}</p>}
-      </div>
-      <button
-        onClick={() => onChange(!enabled)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
-          enabled
-            ? "bg-gradient-to-r from-blue-500 to-purple-600"
-            : "bg-white/20"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-            enabled ? "translate-x-6" : "translate-x-1"
-          }`}
-        />
-      </button>
-    </div>
-  );
 
   const sections = [
     { id: "profile", label: "Profile", icon: User },
