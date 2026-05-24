@@ -26,15 +26,9 @@ import ReactMarkdown from "react-markdown";
 import { useAuthContext } from "@/contexts/AuthContext";
 
 // ---------------------------------------------------------------------------
-// Constants — swap out with your real import if you have one:
-// import { CONTACT_INFO } from '../constants/contact';
+// Constants — centralized
 // ---------------------------------------------------------------------------
-const CONTACT_INFO = {
-  email: "shawprem217@gmail.com",
-  phone: "+91-XXXXXXXXXX",
-  website: "https://learnova-web.vercel.app",
-  demo: "https://learnova-web.vercel.app/contact",
-};
+import { CONTACT_INFO } from '../constants/contact';
 
 // ---------------------------------------------------------------------------
 // Knowledge base
