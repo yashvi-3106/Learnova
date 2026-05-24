@@ -1,50 +1,153 @@
 import { NextResponse } from "next/server";
 
+import { jwtVerify, createRemoteJWKSet } from "jose";
+
+// Firebase publishes RS256 public keys here; rotate every ~6 hours
+const JWKS_URL = new URL(
+  "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+);
+const JWKS = createRemoteJWKSet(JWKS_URL);
+
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+const BASE64_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+function generateNonce() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+
+  let nonce = "";
+  for (let index = 0; index < bytes.length; index += 3) {
+    const byte1 = bytes[index];
+    const byte2 = bytes[index + 1];
+    const byte3 = bytes[index + 2];
+
+    nonce += BASE64_CHARS[byte1 >> 2];
+    nonce += BASE64_CHARS[((byte1 & 0x03) << 4) | (byte2 >> 4)];
+    nonce +=
+      index + 1 < bytes.length
+        ? BASE64_CHARS[((byte2 & 0x0f) << 2) | (byte3 >> 6)]
+        : "=";
+    nonce += index + 2 < bytes.length ? BASE64_CHARS[byte3 & 0x3f] : "=";
+  }
+
+  return nonce;
+}
+
 /**
- * Decodes the payload of a JWT token without verifying its signature.
- * Safe to run in Edge Runtime using standard atob.
- * @param {string} token - The JWT string
- * @returns {Object|null} The decoded token payload or null if invalid
+ * Verifies a Firebase ID token's RS256 signature and all standard claims.
+ * Runs entirely in the Edge Runtime using the jose library.
+ * Fails closed: any error returns null (deny access).
+ *
+ * @param {string} token - The Firebase ID token from the authToken cookie
+ * @returns {Promise<Object|null>} Verified payload, or null if invalid
  */
-function decodeJwt(token) {
+async function verifyIdToken(token) {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    let base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    while (base64.length % 4) {
-      base64 += "=";
+    if (!FIREBASE_PROJECT_ID) return null;
+
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+      audience: FIREBASE_PROJECT_ID,
+      algorithms: ["RS256"],
+      clockTolerance: 300,
+    });
+    
+    // Validate standard JWT claims as required by the Firebase ID token spec
+    const now = Math.floor(Date.now() / 1000);
+    if (!payload.sub || payload.iat > now + 300) {
+      return null;
     }
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
+
+    return payload;
+  } catch {
+    // Network errors, malformed JSON, or crypto failures all result in denial
     return null;
   }
 }
 
-export function middleware(request) {
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // Retrieve cookies
-  const authToken = request.cookies.get("authToken")?.value;
-  const userRole = request.cookies.get("userRole")?.value;
+  // We only want to generate CSP for HTML pages, not static assets or APIs.
+  const isPage = !pathname.startsWith("/_next") && 
+                 !pathname.startsWith("/api") && 
+                 !pathname.match(/\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff2?|json)$/);
 
-  // Check token validity (expiration and parsing)
+  let nonce;
+  let contentSecurityPolicyHeaderValue;
+
+  if (isPage) {
+    // Generate a cryptographic nonce without relying on Edge-incompatible helpers.
+    nonce = generateNonce();
+    
+    // Construct the CSP string using the generated nonce
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://apis.google.com https://www.gstatic.com`,
+      `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.public.blob.vercel-storage.com https://github.com",
+      "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebase.io https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.public.blob.vercel-storage.com https://api.emailjs.com",
+      "media-src 'self' blob:",
+      "worker-src 'self' blob:",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    contentSecurityPolicyHeaderValue = csp;
+  }
+
+  // Set standard headers on request so Next.js can read the x-nonce
+  const requestHeaders = new Headers(request.headers);
+  if (isPage) {
+    requestHeaders.set("x-nonce", nonce);
+  }
+
+  // Retrieve token from Authorization header or cookies
+  let authToken = null;
+  const authorization = request.headers.get("authorization");
+  if (authorization?.startsWith("Bearer ")) {
+    authToken = authorization.split(" ")[1];
+  }
+  if (!authToken) {
+    authToken = request.cookies.get("authToken")?.value;
+  }
+  
+  // Cryptographically verify the token — decoding alone is not sufficient
   let isTokenValid = false;
   let isEmailVerified = false;
+  let userRole = null;
 
   if (authToken) {
-    const decoded = decodeJwt(authToken);
-    if (decoded) {
-      const currentTime = Math.floor(Date.now() / 1000);
-      if (decoded.exp && decoded.exp > currentTime) {
-        isTokenValid = true;
-        isEmailVerified = !!decoded.email_verified;
+    const payload = await verifyIdToken(authToken);
+    if (payload) {
+      isTokenValid = true;
+      isEmailVerified = !!payload.email_verified;
+      
+      // Prioritize securely signed custom claim
+      if (payload.role) {
+        userRole = payload.role;
+      } else if (FIREBASE_PROJECT_ID) {
+        // Fallback: securely fetch the user's role from Firestore REST API
+        try {
+          const res = await fetch(
+            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${payload.sub}`,
+            {
+              headers: { Authorization: `Bearer ${authToken}` }
+            }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            userRole = data.fields?.role?.stringValue || null;
+          }
+        } catch (err) {
+          console.error("Middleware Edge fetch failed:", err);
+        }
       }
     }
   }
@@ -65,6 +168,9 @@ export function middleware(request) {
   if (matchedDashboard) {
     // Not logged in or invalid token -> redirect to /auth
     if (!isTokenValid) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
       return NextResponse.redirect(new URL("/auth", request.url));
     }
 
@@ -73,13 +179,14 @@ export function middleware(request) {
       return NextResponse.redirect(new URL("/verify", request.url));
     }
 
-    // Role mismatch -> redirect to their correct dashboard or /auth
+    // Role mismatch -> redirect to their appropriate dashboard or profile
     if (userRole !== matchedDashboard.role) {
-      const correctDashboard = protectedDashboards.find((d) => d.role === userRole);
-      if (correctDashboard) {
-        return NextResponse.redirect(new URL(correctDashboard.defaultPath, request.url));
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden: Role mismatch" }, { status: 403 });
       }
-      return NextResponse.redirect(new URL("/auth", request.url));
+      const correctDashboard = protectedDashboards.find((d) => d.role === userRole);
+      const redirectTarget = correctDashboard ? correctDashboard.defaultPath : "/profile";
+      return NextResponse.redirect(new URL(redirectTarget, request.url));
     }
   }
 
@@ -119,19 +226,23 @@ export function middleware(request) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  if (isPage) {
+    response.headers.set("Content-Security-Policy", contentSecurityPolicyHeaderValue);
+  }
+
+  return response;
 }
 
 // Next.js Middleware matcher configuration
 export const config = {
   matcher: [
-    "/student/:path*",
-    "/teacher/:path*",
-    "/admin/:path*",
-    "/institute/:path*",
-    "/profile/:path*",
-    "/settings/:path*",
-    "/verify/:path*",
-    "/auth",
+    // Match all HTML page routes. Exclude APIs, static assets, favicon, manifest, and service worker.
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox-.*).*)",
   ],
 };

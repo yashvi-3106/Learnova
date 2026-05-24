@@ -1,7 +1,21 @@
-import { PUT } from "@/app/api/exceptions/update/route";
 import { connectDb } from "@/lib/mongodb";
-import { verifyFirebaseToken, getUserProfile } from "@/lib/firebase-admin";
+import { verifyFirebaseToken, getUserProfile, getUserProfileByEmail } from "@/lib/firebase-admin";
 
+jest.mock("mongodb", () => ({
+  ObjectId: class {
+    constructor(id) {
+      this.id = id;
+    }
+    toString() {
+      return this.id;
+    }
+    static isValid(id) {
+      return typeof id === "string" && id.length === 24;
+    }
+  }
+}));
+
+import { PUT } from "@/app/api/exceptions/update/route";
 jest.mock("next/server", () => ({
   NextResponse: {
     json: jest.fn().mockImplementation((body, init) => {
@@ -17,6 +31,7 @@ jest.mock("next/server", () => ({
 jest.mock("@/lib/firebase-admin", () => ({
   verifyFirebaseToken: jest.fn(),
   getUserProfile: jest.fn(),
+  getUserProfileByEmail: jest.fn(),
 }));
 
 jest.mock("@/lib/mongodb", () => ({
@@ -25,16 +40,37 @@ jest.mock("@/lib/mongodb", () => ({
 
 describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
   let mockUpdateOne;
+  let mockFindOne;
+  let consoleLogMock;
+  let originalConsoleLog;
+
+  beforeAll(() => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterAll(() => {
+    console.error.mockRestore();
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     mockUpdateOne = jest.fn();
+    mockFindOne = jest.fn();
     connectDb.mockResolvedValue({
       collection: jest.fn().mockReturnValue({
+        findOne: mockFindOne,
         updateOne: mockUpdateOne,
       }),
     });
+
+    originalConsoleLog = console.log;
+    consoleLogMock = jest.fn();
+    console.log = consoleLogMock;
+  });
+
+  afterEach(() => {
+    console.log = originalConsoleLog;
   });
 
   const createMockRequest = (headers, bodyData) => {
@@ -47,7 +83,7 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
   };
 
   test("rejects unauthenticated request (no authorization header) with 401 Unauthorized", async () => {
-    verifyFirebaseToken.mockResolvedValue(null);
+    verifyFirebaseToken.mockResolvedValue({ valid: false, reason: "No token" });
 
     const req = createMockRequest({}, { exceptionId: "507f1f77bcf86cd799439011", status: "approved" });
     const response = await PUT(req);
@@ -58,8 +94,8 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
-  test("rejects request if user profile not found with 404", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
+  test("rejects request if user profile not found with 403", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
     getUserProfile.mockResolvedValue(null);
 
     const req = createMockRequest(
@@ -69,13 +105,13 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
     const response = await PUT(req);
     const body = await response.json();
 
-    expect(response.status).toBe(404);
-    expect(body.error).toBe("User profile not found");
+    expect(response.status).toBe(403);
+    expect(body.error).toBe("User profile not found. Access denied.");
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
   test("rejects standard student role with 403 Forbidden", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "student@domain.com" });
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "student@domain.com" } });
     getUserProfile.mockResolvedValue({ role: "student" });
 
     const req = createMockRequest(
@@ -86,13 +122,13 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
     const body = await response.json();
 
     expect(response.status).toBe(403);
-    expect(body.error).toBe("Forbidden");
+    expect(body.error).toBe("Forbidden: Requires one of admin, teacher");
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
   test("rejects missing exceptionId with 400 Bad Request", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },
@@ -107,8 +143,8 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
   });
 
   test("rejects malformed ObjectId with 400 Bad Request", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },
@@ -123,8 +159,8 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
   });
 
   test("rejects invalid status (e.g. pending or custom string) with 400 Bad Request", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },
@@ -138,14 +174,92 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
-  test("accepts valid request and updates status to approved (200)", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
+  test("rejects teacher modification if they teach a different class and don't share student subjects (IDOR protection)", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "teacher-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Data Structures"] });
+    mockFindOne.mockResolvedValue({
+      _id: "507f1f77bcf86cd799439011",
+      studentEmail: "student@domain.com",
+      className: "Web Development",
+    });
+    getUserProfileByEmail.mockResolvedValue({
+      email: "student@domain.com",
+      subjects: ["Web Development", "Database Systems"],
+    });
+
+    const req = createMockRequest(
+      { authorization: "Bearer valid-token" },
+      { exceptionId: "507f1f77bcf86cd799439011", status: "approved" }
+    );
+    const response = await PUT(req);
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toContain("Forbidden: You are not authorized");
+    expect(mockUpdateOne).not.toHaveBeenCalled();
+  });
+
+  test("accepts teacher modification if teacher teaches the class of the exception", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "teacher-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
+    mockFindOne.mockResolvedValue({
+      _id: "507f1f77bcf86cd799439011",
+      studentEmail: "student@domain.com",
+      className: "Web Development",
+    });
     mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },
-      { exceptionId: "507f1f77bcf86cd799439011", status: "approved  ", comments: "Valid excuse" }
+      { exceptionId: "507f1f77bcf86cd799439011", status: "approved", comments: "Authorized" }
+    );
+    const response = await PUT(req);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.message).toBe("Exception updated successfully");
+    expect(mockUpdateOne).toHaveBeenCalled();
+  });
+
+  test("accepts teacher modification as fallback if teacher shares a subject with the student", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "teacher-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Database Systems"] });
+    mockFindOne.mockResolvedValue({
+      _id: "507f1f77bcf86cd799439011",
+      studentEmail: "student@domain.com",
+      className: "Web Development",
+    });
+    getUserProfileByEmail.mockResolvedValue({
+      email: "student@domain.com",
+      subjects: ["Web Development", "Database Systems"],
+    });
+    mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
+
+    const req = createMockRequest(
+      { authorization: "Bearer valid-token" },
+      { exceptionId: "507f1f77bcf86cd799439011", status: "approved" }
+    );
+    const response = await PUT(req);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.message).toBe("Exception updated successfully");
+    expect(mockUpdateOne).toHaveBeenCalled();
+  });
+
+  test("accepts admin modification unconditionally and logs audit entry with approver UID", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "admin-123", email: "admin@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "admin" });
+    mockFindOne.mockResolvedValue({
+      _id: "507f1f77bcf86cd799439011",
+      studentEmail: "student@domain.com",
+      className: "Web Development",
+    });
+    mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
+
+    const req = createMockRequest(
+      { authorization: "Bearer valid-token" },
+      { exceptionId: "507f1f77bcf86cd799439011", status: "rejected" }
     );
     const response = await PUT(req);
     const body = await response.json();
@@ -153,23 +267,54 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
     expect(response.status).toBe(200);
     expect(body.message).toBe("Exception updated successfully");
     expect(mockUpdateOne).toHaveBeenCalledWith(
-      { _id: expect.any(Object) },
+      expect.anything(),
       expect.objectContaining({
         $set: expect.objectContaining({
-          status: "approved",
-          comments: "Valid excuse",
-          reviewedBy: "teacher@domain.com",
-          reviewedAt: expect.any(Date),
-          updatedAt: expect.any(Date),
+          approverId: "admin-123",
+          reviewedBy: "admin@domain.com",
         }),
       })
     );
+    expect(consoleLogMock).toHaveBeenCalledWith(
+      expect.stringContaining("[Audit Log] Exception 507f1f77bcf86cd799439011 rejected by approver UID: admin-123")
+    );
+  });
+
+  test("accepts valid request with empty or null comments", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "admin-123", email: "admin@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "admin" });
+    mockFindOne.mockResolvedValue({ _id: "507f1f77bcf86cd799439011", studentEmail: "student@domain.com" });
+    mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+
+    const req = createMockRequest(
+      { authorization: "Bearer valid-token" },
+      { exceptionId: "507f1f77bcf86cd799439011", status: "approved", comments: "" }
+    );
+    const response = await PUT(req);
+
+    expect(response.status).toBe(200);
+    expect(mockUpdateOne).toHaveBeenCalled();
+  });
+
+  test("rejects request if status is entirely missing", async () => {
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "admin-123", email: "admin@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "admin" });
+
+    const req = createMockRequest(
+      { authorization: "Bearer valid-token" },
+      { exceptionId: "507f1f77bcf86cd799439011" }
+    );
+    const response = await PUT(req);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("Invalid status value");
   });
 
   test("returns 404 if matching exception record not found", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
-    mockUpdateOne.mockResolvedValue({ matchedCount: 0 });
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
+    mockFindOne.mockResolvedValue(null);
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },
@@ -183,9 +328,9 @@ describe("PUT /api/exceptions/update - Security and Validation Tests", () => {
   });
 
   test("handles database query exceptions gracefully returning 500", async () => {
-    verifyFirebaseToken.mockResolvedValue({ uid: "user-123", email: "teacher@domain.com" });
-    getUserProfile.mockResolvedValue({ role: "teacher" });
-    mockUpdateOne.mockRejectedValue(new Error("Database disconnected"));
+    verifyFirebaseToken.mockResolvedValue({ valid: true, decodedToken: { uid: "user-123", email: "teacher@domain.com" } });
+    getUserProfile.mockResolvedValue({ role: "teacher", subjects: ["Web Development"] });
+    mockFindOne.mockRejectedValue(new Error("Database disconnected"));
 
     const req = createMockRequest(
       { authorization: "Bearer valid-token" },

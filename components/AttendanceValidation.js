@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { toast } from 'react-hot-toast'; // or whatever toast library you're using
+import { toast } from "react-hot-toast"; // or whatever toast library you're using
 import { useAuth } from "@/hooks/useAuth";
 import {
   AlertCircle,
@@ -21,11 +21,13 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
   const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState("");
   const [timeValid, setTimeValid] = useState(false);
+  const [countdownText, setCountdownText] = useState("");
   const [passcode, setPasscode] = useState("");
   const [passcodeError, setPasscodeError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [modalLocationLoading, setModalLocationLoading] = useState(false);
@@ -34,37 +36,51 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
 
   // Exception modal states (only for time-based exceptions)
   const [showExceptionModal, setShowExceptionModal] = useState(false);
- const [exceptionForm, setExceptionForm] = useState({
-   reason: "",
-   details: "",
-   studentId: "",
-   studentName: "",
-   currentLocation: null, // Add this field
- });
+  const [exceptionForm, setExceptionForm] = useState({
+    reason: "",
+    details: "",
+    studentId: "",
+    studentName: "",
+    currentLocation: null, // Add this field
+  });
 
-  // Load settings from Firestore
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settingsDoc = await getDoc(
-          doc(db, "attendance_settings", "current_settings")
-        );
-        if (settingsDoc.exists()) {
-          const settingsData = settingsDoc.data();
-          setSettings(settingsData);
-          checkTimeValidity(settingsData.timeWindow);
-        } else {
-          console.error("No attendance settings found");
-        }
-      } catch (error) {
-        console.error("Error loading settings:", error);
-      } finally {
-        setSettingsLoading(false);
+  // Load settings from secure API endpoint (with error handling & retry)
+  const fetchSettings = async () => {
+    if (!user) return;
+    setSettingsLoading(true);
+    setSettingsError(null);
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/attendance/settings", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`HTTP ${response.status} ${response.statusText} ${text}`);
       }
-    };
 
-    loadSettings();
-  }, []);
+      const settingsData = await response.json();
+      setSettings(settingsData);
+      setSettingsError(null);
+      checkTimeValidity(settingsData.timeWindow);
+    } catch (error) {
+      console.error("Error loading attendance settings:", error);
+      setSettings(null);
+      setSettingsError(error?.message || "Unknown error");
+      toast.error("Unable to load attendance settings. Check console for details.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchSettings();
+  }, [user]);
 
   const checkTimeValidity = (timeWindow) => {
     if (!timeWindow) return;
@@ -74,6 +90,56 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
       currentTime >= timeWindow.start && currentTime <= timeWindow.end;
     setTimeValid(isValidTime);
   };
+
+  // Live countdown timer for the attendance window
+  useEffect(() => {
+    if (!settings?.timeWindow) return;
+
+    const updateTimer = () => {
+      const { start, end } = settings.timeWindow;
+      const now = new Date();
+      
+      // Parse start and end times today
+      const [startH, startM] = start.split(":").map(Number);
+      const [endH, endM] = end.split(":").map(Number);
+
+      const startTime = new Date(now);
+      startTime.setHours(startH, startM, 0, 0);
+
+      const endTime = new Date(now);
+      endTime.setHours(endH, endM, 0, 0);
+
+      // Check current validity
+      const isValid = now >= startTime && now <= endTime;
+      setTimeValid(isValid);
+
+      if (now < startTime) {
+        // Window is not open yet
+        const diffMs = startTime - now;
+        const h = Math.floor(diffMs / 3600000);
+        const m = Math.floor((diffMs % 3600000) / 60000);
+        const s = Math.floor((diffMs % 60000) / 1000);
+        const pad = (n) => String(n).padStart(2, "0");
+        setCountdownText(`Opens in ${pad(h)}h ${pad(m)}m ${pad(s)}s`);
+      } else if (now >= startTime && now <= endTime) {
+        // Window is open
+        const diffMs = endTime - now;
+        const h = Math.floor(diffMs / 3600000);
+        const m = Math.floor((diffMs % 3600000) / 60000);
+        const s = Math.floor((diffMs % 60000) / 1000);
+        const pad = (n) => String(n).padStart(2, "0");
+        setCountdownText(`Closes in ${pad(h)}h ${pad(m)}m ${pad(s)}s`);
+      } else {
+        // Window has expired
+        setCountdownText("Closed");
+      }
+    };
+
+    updateTimer(); // run immediately
+    const intervalId = setInterval(updateTimer, 1000); // update every second
+
+    return () => clearInterval(intervalId);
+  }, [settings]);
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3;
@@ -107,7 +173,7 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 15000,
-          maximumAge: 30000,
+          maximumAge: 0,
         });
       });
 
@@ -117,7 +183,7 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
         userLat,
         userLng,
         settings.gpsLocation.lat,
-        settings.gpsLocation.lng
+        settings.gpsLocation.lng,
       );
 
       const locationData = {
@@ -136,30 +202,29 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
       } else {
         setLocationError(
           `You are ${Math.round(
-            distance
+            distance,
           )}m away from the valid location. You need to be within ${
             settings.gpsLocation.radius
-          }m to proceed.`
+          }m to proceed.`,
         );
       }
     } catch (error) {
-      console.error("Location error:", error);
       setRetryCount((prev) => prev + 1);
 
       if (error.code === 1) {
         setLocationDenied(true);
         setLocationError(
-          "Location access was denied. Please enable location services in your browser settings and click 'Enable Location' to try again."
+          "Location access was denied. Please enable location services in your browser settings and click 'Enable Location' to try again.",
         );
       } else if (error.code === 2) {
         setLocationError(
-          "Your location is unavailable. Please check your GPS settings and try again."
+          "Your location is unavailable. Please check your GPS settings and try again.",
         );
       } else if (error.code === 3) {
         setLocationError("Location request timed out. Please try again.");
       } else {
         setLocationError(
-          "Unable to retrieve your location. Please ensure location services are enabled and try again."
+          "Unable to retrieve your location. Please ensure location services are enabled and try again.",
         );
       }
     } finally {
@@ -175,7 +240,7 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
       });
       if (permission.state === "denied") {
         setLocationError(
-          "Location is permanently blocked. Please go to your browser settings, unblock location for this site, and refresh the page."
+          "Location is permanently blocked. Please go to your browser settings, unblock location for this site, and refresh the page.",
         );
         return;
       }
@@ -187,15 +252,32 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
     requestLocation();
   };
 
-  const validatePasscode = () => {
-    if (!settings) return;
-    if (passcode === settings.passcode) {
-      setPasscodeError("");
-      setCurrentStep(3);
-    } else {
-      setPasscodeError(
-        "Invalid passcode. Please contact your teacher for the correct code."
-      );
+  const validatePasscode = async () => {
+    if (!passcode.trim()) return;
+    setIsLoading(true);
+    setPasscodeError("");
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/attendance/validate-passcode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ passcode }),
+      });
+      const data = await response.json();
+      if (response.ok && data.valid) {
+        setCurrentStep(3);
+      } else {
+        setPasscodeError(
+          data.error || "Invalid passcode. Please contact your teacher for the correct code."
+        );
+      }
+    } catch (error) {
+      setPasscodeError("Error validating passcode. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -203,64 +285,62 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
     onValidationSuccess();
   };
 
-  
- const submitTimeExceptionRequest = async () => {
-   setExceptionForm((prev) => ({
-     ...prev,
-     studentId: user?.email || "",
-     studentName: user?.displayName || user?.email || "",
-   }));
-   setShowExceptionModal(true);
- };
+  const submitTimeExceptionRequest = async () => {
+    setExceptionForm((prev) => ({
+      ...prev,
+      studentId: user?.email || "",
+      studentName: user?.displayName || user?.email || "",
+    }));
+    setShowExceptionModal(true);
+  };
 
- const getCurrentLocationForException = async () => {
-   setModalLocationLoading(true);
+  const getCurrentLocationForException = async () => {
+    setModalLocationLoading(true);
 
-   try {
-     const position = await new Promise((resolve, reject) => {
-       navigator.geolocation.getCurrentPosition(resolve, reject, {
-         enableHighAccuracy: true,
-         timeout: 15000,
-         maximumAge: 30000,
-       });
-     });
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
 
-     const userLat = position.coords.latitude;
-     const userLng = position.coords.longitude;
-     const distance = calculateDistance(
-       userLat,
-       userLng,
-       settings.gpsLocation.lat,
-       settings.gpsLocation.lng
-     );
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+      const distance = calculateDistance(
+        userLat,
+        userLng,
+        settings.gpsLocation.lat,
+        settings.gpsLocation.lng,
+      );
 
-     const currentLocationData = {
-       lat: userLat,
-       lng: userLng,
-       distance: Math.round(distance),
-       isValid: distance <= settings.gpsLocation.radius,
-       timestamp: new Date().toISOString(),
-     };
+      const currentLocationData = {
+        lat: userLat,
+        lng: userLng,
+        distance: Math.round(distance),
+        isValid: distance <= settings.gpsLocation.radius,
+        timestamp: new Date().toISOString(),
+      };
 
-     setExceptionForm((prev) => ({
-       ...prev,
-       currentLocation: currentLocationData,
-     }));
+      setExceptionForm((prev) => ({
+        ...prev,
+        currentLocation: currentLocationData,
+      }));
 
-     toast.success("Current location captured successfully");
-   } catch (error) {
-     console.error("Location error:", error);
-     // In getCurrentLocationForException, add error handling for denied permissions
-     if (error.code === 1) {
-       toast.error(
-         "Location access denied. Please enable location in browser settings."
-       );
-     }
-   } finally {
-     setModalLocationLoading(false);
-   }
- };
-  
+      toast.success("Current location captured successfully");
+    } catch (error) {
+      // In getCurrentLocationForException, add error handling for denied permissions
+      if (error.code === 1) {
+        toast.error(
+          "Location access denied. Please enable location in browser settings.",
+        );
+      }
+    } finally {
+      setModalLocationLoading(false);
+    }
+  };
+
   const handleExceptionSubmit = async () => {
     try {
       const requestData = {
@@ -296,7 +376,7 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
       if (response.ok) {
         setShowExceptionModal(false);
         toast.success(
-          "Exception request submitted successfully. Your teacher will review it."
+          "Exception request submitted successfully. Your teacher will review it.",
         );
         setExceptionForm({
           reason: "",
@@ -309,7 +389,6 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
         toast.error("Failed to submit request. Please try again.");
       }
     } catch (error) {
-      console.error("Exception submission error:", error);
       toast.error("Error submitting request. Please try again.");
     }
   };
@@ -352,14 +431,25 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
               Unable to load attendance settings. Please contact your
               administrator or try refreshing the page.
             </p>
+            {settingsError && (
+              <p className="text-sm text-red-400 mt-2 break-words">
+                {settingsError}
+              </p>
+            )}
           </div>
-          <Button
-            onClick={() => window.location.reload()}
-            className="bg-red-600 hover:bg-red-700 text-white"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh Page
-          </Button>
+          <div className="flex items-center justify-center gap-3">
+            <Button onClick={fetchSettings} className="bg-red-600 hover:bg-red-700 text-white">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+            <Button
+              onClick={() => window.location.reload()}
+              variant="outline"
+              className="text-white border border-white/10"
+            >
+              Hard Refresh
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -420,6 +510,18 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
                     ? `✅ Perfect timing! Valid window: ${settings.timeWindow.start} - ${settings.timeWindow.end}`
                     : `⏰ Outside time window. Valid hours: ${settings.timeWindow.start} - ${settings.timeWindow.end}`}
                 </p>
+                {countdownText && (
+                  <div
+                    className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${
+                      timeValid
+                        ? "bg-green-500/20 text-green-300 border border-green-500/30 animate-pulse"
+                        : "bg-red-500/20 text-red-300 border border-red-500/30"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{countdownText}</span>
+                  </div>
+                )}
               </div>
               {timeValid ? (
                 <CheckCircle className="w-8 h-8 text-green-500" />
@@ -436,8 +538,8 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
             location?.isValid
               ? "border-green-500/50 bg-gradient-to-r from-green-500/10 to-emerald-500/10"
               : location && !location.isValid
-              ? "border-red-500/50 bg-gradient-to-r from-red-500/10 to-orange-500/10"
-              : "border-gray-500/50 bg-gradient-to-r from-gray-500/10 to-slate-500/10"
+                ? "border-red-500/50 bg-gradient-to-r from-red-500/10 to-orange-500/10"
+                : "border-gray-500/50 bg-gradient-to-r from-gray-500/10 to-slate-500/10"
           }`}
         >
           <div className="p-6">
@@ -447,8 +549,8 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
                   location?.isValid
                     ? "bg-green-500"
                     : location && !location.isValid
-                    ? "bg-red-500"
-                    : "bg-gray-500"
+                      ? "bg-red-500"
+                      : "bg-gray-500"
                 }`}
               >
                 <MapPin className="w-6 h-6 text-white" />
@@ -462,15 +564,15 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
                     location?.isValid
                       ? "text-green-300"
                       : location && !location.isValid
-                      ? "text-red-300"
-                      : "text-gray-300"
+                        ? "text-red-300"
+                        : "text-gray-300"
                   }`}
                 >
                   {location?.isValid
                     ? `✅ Perfect! You are ${location.distance}m from the institution`
                     : location && !location.isValid
-                    ? `❌ Too far! You are ${location.distance}m away (maximum: ${settings.gpsLocation.radius}m)`
-                    : "📍 Location check required"}
+                      ? `❌ Too far! You are ${location.distance}m away (maximum: ${settings.gpsLocation.radius}m)`
+                      : "📍 Location check required"}
                 </p>
               </div>
               {location?.isValid ? (
@@ -591,7 +693,10 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
           <input
             type="password"
             value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setPasscode(val);
+            }}
             placeholder="• • • • • •"
             className="w-full bg-white/5 border-2 border-white/20 rounded-2xl px-8 py-6 text-white placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-purple-500/50 focus:border-purple-500 text-center text-3xl tracking-[0.5em] font-bold transition-all duration-300"
             maxLength={8}
@@ -745,8 +850,8 @@ const AttendanceValidation = ({ onValidationSuccess }) => {
                       step <= currentStep
                         ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50 scale-110"
                         : step === currentStep + 1
-                        ? "bg-gray-600 text-gray-300 scale-105"
-                        : "bg-gray-700 text-gray-500"
+                          ? "bg-gray-600 text-gray-300 scale-105"
+                          : "bg-gray-700 text-gray-500"
                     }`}
                   >
                     {step < currentStep ? (
