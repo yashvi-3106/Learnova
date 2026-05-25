@@ -12,8 +12,7 @@ import {
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
-
-import { useNotifications } from "@/hooks/useNotifications";
+import NotificationBell from "@/components/NotificationBell";
 
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,7 +40,6 @@ import {
   Sparkles,
   Home,
   Mail,
-  Bell,
   UserCheck,
   Sun,
   Moon,
@@ -53,18 +51,11 @@ import {
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isLangOpen, setIsLangOpen] = useState(false); // Language dropdown state
   const [currentLang, setCurrentLang] = useState("English"); // Tracks selected language
   const [scrollProgress, setScrollProgress] = useState(0);
   const [mounted, setMounted] = useState(false);
   const { i18n } = useTranslation();
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-  } = useNotifications();
 
   const {
     user,
@@ -111,7 +102,6 @@ export function Navbar() {
       !dropdownRef.current.contains(event.target)
     ) {
       setIsDropdownOpen(false);
-      setIsNotificationOpen(false);
     }
     // Close language selector if clicking outside
     if (
@@ -131,7 +121,6 @@ export function Navbar() {
   useEffect(() => {
     const closeMenus = () => {
       setIsDropdownOpen(false);
-      setIsNotificationOpen(false);
       setIsMenuOpen(false);
       setIsLangOpen(false);
     };
@@ -158,7 +147,6 @@ export function Navbar() {
   useEffect(() => {
     setIsMenuOpen(false);
     setIsDropdownOpen(false);
-    setIsNotificationOpen(false);
     setIsLangOpen(false);
   }, [pathname]);
 
@@ -411,42 +399,7 @@ export function Navbar() {
                 <div className="w-24 h-10 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded-xl" />
               ) : isAuthenticated ? (
                 <div className="flex items-center space-x-3 pl-1 border-l border-zinc-200 dark:border-zinc-800">
-                  
-                  {/* Notifications Module Panel */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                      className="relative p-2 rounded-xl text-gray-900 dark:text-gray-50 hover:text-gray-950 dark:hover:text-white hover:bg-accent/10 transition-all duration-300 cursor-pointer"
-                      aria-label="View notifications"
-                    >
-                      <Bell className="h-5 w-5" />
-                      {unreadCount > 0 && <span className="absolute top-2 right-2 bg-red-500 rounded-full h-2 w-2" />}
-                    </button>
-
-                    {isNotificationOpen && (
-                      <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-[80] overflow-hidden">
-                        <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50">
-                          <h3 className="text-zinc-900 dark:text-zinc-100 font-bold text-sm">Notifications</h3>
-                          {unreadCount > 0 && (
-                            <button onClick={markAllAsRead} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
-                              Mark all as read
-                            </button>
-                          )}
-                        </div>
-                        <div className="max-h-60 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-900">
-                          {notifications.length === 0 ? (
-                            <div className="p-4 text-center text-sm text-zinc-400">No new notices</div>
-                          ) : (
-                            notifications.map((n) => (
-                              <div key={n.id} onClick={() => markAsRead(n.id)} className={`p-3 text-left cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40 ${!n.read ? "bg-blue-50/30" : ""}`}>
-                                <p className="text-sm text-zinc-800 dark:text-zinc-200 line-clamp-2">{n.message}</p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <NotificationBell />
 
                   {/* Profile Dropdown */}
                   <div className="relative" ref={dropdownRef}>
@@ -529,19 +482,24 @@ export function Navbar() {
             </div>
             
             {isAuthenticated && (
-              <div className="flex items-center space-x-3 p-2 bg-zinc-50 dark:bg-zinc-900/40 rounded-xl border border-zinc-100 dark:border-zinc-800/50">
-                <div className="relative w-10 h-10 shrink-0">
-                  {getUserPhoto() ? (
-                    <Image src={getUserPhoto()} alt="Profile" width={40} height={40} className="rounded-full object-cover" onError={handleImageError} />
-                  ) : (
-                    <div className="absolute inset-0 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                      {getUserInitials(getUserDisplayName())}
-                    </div>
-                  )}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 p-2 bg-zinc-50 dark:bg-zinc-900/40 rounded-xl border border-zinc-100 dark:border-zinc-800/50">
+                  <div className="relative w-10 h-10 shrink-0">
+                    {getUserPhoto() ? (
+                      <Image src={getUserPhoto()} alt="Profile" width={40} height={40} className="rounded-full object-cover" onError={handleImageError} />
+                    ) : (
+                      <div className="absolute inset-0 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                        {getUserInitials(getUserDisplayName())}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 truncate">{getUserDisplayName()}</h4>
+                    <p className="text-[11px] text-zinc-400 truncate">{getUserRole()}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 truncate">{getUserDisplayName()}</h4>
-                  <p className="text-[11px] text-zinc-400 truncate">{getUserRole()}</p>
+                <div className="rounded-xl border border-zinc-100 dark:border-zinc-800/50 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2">
+                  <NotificationBell />
                 </div>
               </div>
             )}
