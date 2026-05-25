@@ -735,8 +735,7 @@ const LearnovaChatbot = () => {
                       ))}
                     </div>
                     <span
-                      className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                        }`}
+                      className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
                     >
                       Analyzing your question...
                     </span>
