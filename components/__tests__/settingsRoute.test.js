@@ -48,13 +48,12 @@ describe("PATCH /api/settings - Security, Role-Based Access and Audit Logging Te
   });
 
   const createMockRequest = (headers, bodyData) => {
-    const rawText = bodyData !== null ? JSON.stringify(bodyData) : "";
     return {
       headers: {
         get: (name) => headers[name.toLowerCase()] || null,
       },
       json: jest.fn().mockResolvedValue(bodyData),
-      text: jest.fn().mockResolvedValue(rawText),
+      text: jest.fn().mockResolvedValue(JSON.stringify(bodyData)),
     };
   };
 
