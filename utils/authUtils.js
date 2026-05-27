@@ -1,5 +1,3 @@
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebaseConfig";
 import { USER_ROLES } from "@/constants/userRoles";
 import { initializeUserStats } from "@/services/statsService";
 import {
@@ -64,12 +62,14 @@ export const getErrorMessage = (errorCode) => {
     case "auth/too-many-requests":
       return "Too many failed attempts. Please try again later.";
     default:
-      return null;
+      return "Authentication failed. Please check your credentials and try again.";
   }
 };
 
 /**
- * Creates and stores a user profile in Firestore.
+ * Creates and stores a user profile via the server-side role validation
+ * endpoint. The role is cryptographically signed into the Firebase token
+ * via custom claims so the middleware can trust it.
  * @param {Object} user - Firebase authenticated user object.
  * @param {string} role - Role assigned to the user.
  * @param {Object} additionalData - Additional profile information.
@@ -82,29 +82,38 @@ export const createUserProfile = async (user, role, additionalData = {}) => {
     throw new Error("Full name is required");
   }
 
-  const userProfile = {
-    uid: user.uid,
-    email: user.email,
-    fullName: fullName.trim(),
-    role,
-    createdAt: new Date(),
-    emailVerified: user.emailVerified,
-    lastLogin: new Date(),
-  };
+  const idToken = await user.getIdToken();
 
-  if (role === USER_ROLES.INSTITUTE) {
-    if (!instituteName?.trim()) {
-      throw new Error("Institute name is required");
-    }
-    userProfile.instituteName = instituteName.trim();
+  const response = await fetch("/api/auth/set-role", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      role,
+      fullName: fullName.trim(),
+      ...(role === USER_ROLES.INSTITUTE && instituteName?.trim()
+        ? { instituteName: instituteName.trim() }
+        : {}),
+      ...(additionalData.inviteCode
+        ? { inviteCode: additionalData.inviteCode }
+        : {}),
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data.error || "Failed to create user profile. Please try again."
+    );
   }
 
-  await setDoc(doc(db, "users", user.uid), userProfile);
-  
   // Initialize their empty dashboard stats
   await initializeUserStats(user.uid);
 
-  return userProfile;
+  return data.data.userProfile;
 };
 
 /**
@@ -114,7 +123,7 @@ export const createUserProfile = async (user, role, additionalData = {}) => {
  * @returns {Object} Validation result containing status and error messages.
  */
 export const validateForm = (formData, isLogin) => {
-  const { selectedRole, email, password, fullName, instituteName } = formData;
+  const { selectedRole, email, password, fullName, instituteName, inviteCode } = formData;
   const errors = {};
 
   // Role is always required
@@ -127,7 +136,9 @@ export const validateForm = (formData, isLogin) => {
     errors.email = emailValidation;
   }
 
-  const passwordValidation = isLogin ? validateRequired(password, "Password") : validatePassword(password);
+  const passwordValidation = isLogin
+    ? validateRequired(password, "Password")
+    : validatePassword(password);
   if (passwordValidation !== true) {
     errors.password = passwordValidation;
   }
@@ -139,9 +150,22 @@ export const validateForm = (formData, isLogin) => {
     }
 
     if (selectedRole === USER_ROLES.INSTITUTE) {
-      const instituteNameValidation = validateRequired(instituteName, "Institute name");
+      const instituteNameValidation = validateRequired(
+        instituteName,
+        "Institute name",
+      );
       if (instituteNameValidation !== true) {
         errors.instituteName = instituteNameValidation;
+      }
+    }
+
+    if (selectedRole === USER_ROLES.TEACHER || selectedRole === USER_ROLES.INSTITUTE) {
+      const inviteCodeValidation = validateRequired(
+        inviteCode,
+        "Invite code"
+      );
+      if (inviteCodeValidation !== true) {
+        errors.inviteCode = inviteCodeValidation;
       }
     }
   }
@@ -177,7 +201,6 @@ export const redirectBasedOnRole = (role, router) => {
         router.push("/profile");
     }
   } catch (err) {
-    console.error("Navigation error:", err);
     throw new Error("Navigation failed. Please try refreshing the page.");
   }
 };

@@ -1,5 +1,5 @@
 "use client";
-
+import { useEffect } from "react";
 import { useState } from "react";
 import {
   Building2,
@@ -28,6 +28,9 @@ import ChartSkeleton from "@/components/ui/ChartSkeleton";
 import DashboardSkeleton from "@/components/ui/DashboardSkeleton";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 
+// CRITICAL FIX: Imported missing useAuth hook to prevent ReferenceError crash
+import { useAuth } from "@/hooks/useAuth";
+
 const AttendanceTrendsChart = dynamic(
   () => import("@/components/charts/AttendanceTrendsChart"),
   { ssr: false, loading: () => <ChartSkeleton variant="chart" /> }
@@ -44,121 +47,68 @@ const SuperAdminDashboard = () => {
   const [selectedInstitute, setSelectedInstitute] = useState("all");
   const [showCriticalAlert, setShowCriticalAlert] = useState(false);
   const [systemStatus, setSystemStatus] = useState("operational");
+  const { user } = useAuth();
+
+  const [platformStats, setPlatformStats] = useState({
+    totalInstitutes: 0,
+    activeInstitutes: 0,
+    totalUsers: 0,
+    dailyActiveUsers: 0,
+    faceRecognitionAPICalls: "—",
+    storageUsed: "—",
+    systemUptime: "—",
+    revenue: "—",
+    pendingIssues: 0,
+    serverLoad: 0,
+  });
+  const [institutes, setInstitutes] = useState([]);
+  const [systemMetrics, setSystemMetrics] = useState({});
+  const [criticalAlerts, setCriticalAlerts] = useState([]);
+  const [featureUsage, setFeatureUsage] = useState({});
+
   useEffect(() => {
-  const loadingTimer = setTimeout(() => {
-    setLoading(false);
-  }, 1500);
+    if (!user) return;
 
-  return () => clearTimeout(loadingTimer);
-}, []);
+    const controller = new AbortController();
+    let isActive = true;
 
-  // Platform-wide statistics
-  const platformStats = {
-    totalInstitutes: 47,
-    activeInstitutes: 45,
-    totalUsers: 52350,
-    dailyActiveUsers: 41200,
-    faceRecognitionAPICalls: "2.3M",
-    storageUsed: "78.4 TB",
-    systemUptime: "99.97%",
-    revenue: "$124,500",
-    pendingIssues: 3,
-    serverLoad: 68,
-  };
+    const fetchStats = async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/admin/stats", {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
 
-  // Institute management data
-  const institutes = [
-    {
-      id: 1,
-      name: "Delhi Technical University",
-      status: "active",
-      students: 3500,
-      teachers: 120,
-      plan: "Premium",
-      storage: "1.2TB",
-      apiCalls: 125000,
-      lastActive: "2 mins ago",
-      healthScore: 98,
-      payment: "paid",
-      issues: 0,
-    },
-    {
-      id: 2,
-      name: "Mumbai Institute of Technology",
-      status: "active",
-      students: 2800,
-      teachers: 95,
-      plan: "Professional",
-      storage: "980GB",
-      apiCalls: 98000,
-      lastActive: "5 mins ago",
-      healthScore: 95,
-      payment: "paid",
-      issues: 1,
-    },
-    {
-      id: 3,
-      name: "Bangalore Science College",
-      status: "suspended",
-      students: 1500,
-      teachers: 60,
-      plan: "Basic",
-      storage: "450GB",
-      apiCalls: 45000,
-      lastActive: "2 days ago",
-      healthScore: 45,
-      payment: "overdue",
-      issues: 3,
-    },
-  ];
+        if (!isActive) return;
 
-  // System monitoring data
-  const systemMetrics = {
-    faceRecognitionAPI: {
-      status: "operational",
-      latency: "120ms",
-      uptime: "99.99%",
-    },
-    gpsService: { status: "operational", latency: "45ms", uptime: "99.95%" },
-    database: { status: "operational", connections: 234, load: "65%" },
-    storage: { total: "100TB", used: "78.4TB", available: "21.6TB" },
-    cdn: { status: "operational", bandwidth: "450 Mbps", cache: "92%" },
-  };
+        if (res.ok) {
+          const data = await res.json();
+          if (data.platformStats) setPlatformStats(data.platformStats);
+          if (data.institutes) setInstitutes(data.institutes);
+          if (data.systemMetrics) setSystemMetrics(data.systemMetrics);
+          if (data.criticalAlerts) setCriticalAlerts(data.criticalAlerts);
+          if (data.featureUsage) setFeatureUsage(data.featureUsage);
+        } else {
+          console.error("Failed to fetch admin stats:", res.status);
+        }
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        console.error("Error fetching admin stats:", err);
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
 
-  // Critical system alerts
-  const criticalAlerts = [
-    {
-      id: 1,
-      type: "security",
-      message:
-        "Multiple failed face recognition attempts detected - Delhi Technical University",
-      severity: "high",
-      time: "10 mins ago",
-    },
-    {
-      id: 2,
-      type: "payment",
-      message: "Payment overdue - Bangalore Science College",
-      severity: "medium",
-      time: "2 days ago",
-    },
-    {
-      id: 3,
-      type: "performance",
-      message: "High API latency detected in Mumbai region",
-      severity: "low",
-      time: "1 hour ago",
-    },
-  ];
+    fetchStats();
 
-  // Feature usage analytics
-  const featureUsage = {
-    faceRecognition: { enabled: 42, total: 47, percentage: 89 },
-    gpsGeofencing: { enabled: 45, total: 47, percentage: 96 },
-    passcodeSystem: { enabled: 47, total: 47, percentage: 100 },
-    exceptionHandling: { enabled: 38, total: 47, percentage: 81 },
-    analyticsReports: { enabled: 35, total: 47, percentage: 74 },
-  };
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [user]);
 
   const renderOverview = () => (
     <div className="space-y-6">
@@ -539,19 +489,19 @@ const SuperAdminDashboard = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="text-blue-400 hover:text-blue-300 transition-colors">
+                      <button aria-label="Institute Settings" className="text-blue-400 hover:text-blue-300 transition-colors">
                         <Settings className="w-4 h-4" />
                       </button>
                       {institute.status === "active" ? (
-                        <button className="text-yellow-400 hover:text-yellow-300 transition-colors">
+                        <button aria-label="Lock Institute" className="text-yellow-400 hover:text-yellow-300 transition-colors">
                           <Lock className="w-4 h-4" />
                         </button>
                       ) : (
-                        <button className="text-green-400 hover:text-green-300 transition-colors">
+                        <button aria-label="Unlock Institute" className="text-green-400 hover:text-green-300 transition-colors">
                           <Unlock className="w-4 h-4" />
                         </button>
                       )}
-                      <button className="text-red-400 hover:text-red-300 transition-colors">
+                      <button aria-label="Ban Institute" className="text-red-400 hover:text-red-300 transition-colors">
                         <Ban className="w-4 h-4" />
                       </button>
                     </div>

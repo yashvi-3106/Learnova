@@ -1,43 +1,25 @@
-## What type of PR is this?
-
-- [ ] 🐛 Bug fix
-- [ ] ✨ New feature
-- [ ] 📚 Documentation
-- [ ] 🎨 UI/UX improvement
-- [ ] ⚡ Performance improvement
-- [ ] 🔒 Security fix
-
 ## Description
+<!-- Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context. -->
 
-Briefly describe what you changed and why.
+Fixes # (issue)
 
-## Related Issues
+## Type of Change
+Please delete options that are not relevant.
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] This change requires a documentation update
 
-Closes #(issue number)
+## How Has This Been Tested?
+<!-- Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce. -->
 
-## Changes Made
+- [ ] Manual test: (explain how you verified the changes)
+- [ ] Automated test suite
 
-- Bullet point 1
-- Bullet point 2
-- Bullet point 3
-
-## Testing
-
-How did you test these changes?
-- [ ] Tested locally
-- [ ] Tested on mobile
-- [ ] Tested different user roles
-- [ ] All roles tested
-
-## Screenshots (if applicable)
-
-Add before/after screenshots for UI changes.
-
-## Checklist
-
-- [ ] No hardcoded secrets or credentials
-- [ ] `.env.local` is not committed
-- [ ] Code follows project style
-- [ ] Changes are documented
-- [ ] Build passes locally (`npm run build`)
-- [ ] No console errors/warnings
+## Checklist:
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have checked my code and corrected any misspellings

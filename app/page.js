@@ -1,696 +1,515 @@
 "use client";
-import { useTheme } from "next-themes";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Navbar } from "@/components/Navbar";
-import { motion } from "framer-motion";
-import SplitText from "@/components/ui-block/SplitText";
-import DarkVeil from "@/components/ui-block/DarkVeil";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Target,
-  Heart,
-  Lightbulb,
-  User,
-  Building2,
-  GraduationCap,
-  Sparkles,
-  ArrowRight,
-  BookOpen,
-  Users,
-  TrendingUp,
-  Award,
-} from "lucide-react";
+
+import React, { useState } from "react";
 import Link from "next/link";
-import { analytics } from "@/lib/firebaseConfig";
-import { logEvent } from "firebase/analytics";
-import LearnovaChatbot from "@/components/ChatBot";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  TrendingUp, 
+  ArrowRight, 
+  Award, 
+  MessageSquare, 
+  ShieldCheck, 
+  Zap, 
+  Calendar, 
+  UserCheck, 
+  BarChart3, 
+  GraduationCap, 
+  BookOpen, 
+  Users,
+  ChevronDown,
+  HelpCircle
+} from "lucide-react";
+import { Navbar } from "@/components/Navbar";
 
-// Constants moved outside component for better performance
-const PARTICLES_DATA = [
-  { id: 1, left: 20, top: 30, delay: 0, duration: 10 },
-  { id: 2, left: 60, top: 80, delay: 2, duration: 12 },
-  { id: 3, left: 80, top: 20, delay: 4, duration: 14 },
-  { id: 4, left: 30, top: 70, delay: 6, duration: 11 },
-  { id: 5, left: 90, top: 50, delay: 8, duration: 13 },
-];
-
-const STATS_DATA = [
-  { number: "10,000+", label: "Institution Partnerships", icon: BookOpen },
-  { number: "5M+", label: "Student Tracking", icon: Users },
-  { number: "70%", label: "Time Saved", icon: TrendingUp },
-  { number: "98%", label: "Accuracy Rate", icon: Award },
-];
-
-const VALUES_DATA = [
+// --- Mock Data & Constants ---
+const STATS_ITEMS = [
   {
-    icon: Target,
-    title: "Efficiency",
-    description:
-      "We streamline workflows and reduce redundancy, giving educators more time to focus on teaching.",
-    gradient: "from-blue-500 to-cyan-500",
+    id: "ring-3",
+    number: 99.8,
+    suffix: "%",
+    label: "Attendance Tracking Accuracy",
+    href: "/metrics/attendance"
   },
   {
-    icon: Heart,
-    title: "Engagement",
-    description:
-      "Interactive and gamified experiences that motivate students and make learning enjoyable.",
-    gradient: "from-pink-500 to-rose-500",
+    id: "ring-2",
+    number: 45,
+    suffix: "%",
+    label: "Admin Workload Reduction",
+    href: "/metrics/efficiency"
   },
   {
-    icon: Lightbulb,
-    title: "Accessibility",
-    description:
-      "Designed for all schools, even in low-network areas, with affordable and easy-to-use solutions.",
-    gradient: "from-purple-500 to-violet-500",
-  },
-];
-
-const TEAM_MEMBERS = [
-  {
-    name: "Prem Shaw",
-    role: "Founder & Creator — Team Leader, Full-Stack Developer",
-    initials: "PS",
-    description:
-      "Founder of Learnova. Leads the team and built the platform end-to-end — from architecture and backend services to frontend UX and deployment — ensuring a seamless, scalable learning experience.",
-    color: "from-purple-500 to-pink-500",
-  },
-  {
-    name: "Prashant Bhati",
-    role: "Web Developer",
-    initials: "PB",
-    description:
-      "Maintains Learnova’s web pages and implements frontend features to ensure a smooth, responsive user experience.",
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    name: "Polawar Pranav Shirish",
-    role: "Frontend Developer",
-    initials: "PP",
-    description:
-      "Designs interactive user interfaces to deliver an engaging and accessible student experience.",
-    color: "from-emerald-500 to-teal-500",
-  },
-  {
-    name: "Abir Ghosh",
-    role: "Machine Learning Specialist",
-    initials: "AG",
-    description:
-      "Develops ML models and data-driven insights to personalize learning and optimize institutional performance.",
-    color: "from-rose-500 to-pink-500",
-  },
-  {
-    name: "Anuj Ram Shrivastava",
-    role: "ML & Backend Developer",
-    initials: "AR",
-    description:
-      "Works on backend systems and ML algorithms that power smart recommendations and advanced analytics in Learnova.",
-    color: "from-indigo-500 to-violet-500",
-  },
-  {
-    name: "Chandana S",
-    role: "Testing & Documentation",
-    initials: "CS",
-    description:
-      "Ensures reliability through rigorous testing and comprehensive documentation for the platform.",
-    color: "from-amber-500 to-orange-500",
-  },
-];
-
-const IMPACT_DATA = [
-  {
-    icon: User,
-    title: "Teachers",
-    description:
-      "Regain ~1 hour/day, enabling more focus on teaching and mentoring.",
-  },
-  {
-    icon: GraduationCap,
-    title: "Students",
-    description:
-      "Convert ~90+ hours/year from idle time into productive learning.",
-  },
-  {
-    icon: Building2,
-    title: "Institutions",
-    description:
-      "Improve attendance and engagement metrics, enhancing overall efficiency.",
-  },
-  {
-    icon: Users,
-    title: "Parents",
-    description:
-      "Gain transparent insights into their child's attendance and activities, fostering trust.",
-  },
-];
-
-// Reusable components
-const SectionBadge = ({
-  icon: Icon,
-  text,
-  gradient = "from-purple-500/20 to-pink-500/20",
-  borderColor = "purple-500/30",
-  textColor = "purple-300",
-}) => (
-  <div
-    className={`inline-flex items-center px-4 py-2 bg-gradient-to-r ${gradient} rounded-full border border-${borderColor} backdrop-blur-sm mb-6`}
-  >
-    <Icon className={`w-5 h-5 text-${textColor.split("-")[0]}-400 mr-2`} />
-    <span className={`text-${textColor} font-medium`}>{text}</span>
-  </div>
-);
-
-const Reveal = ({ children, className = "", delay = 0, y = 28 }) => (
-  <motion.div
-    className={className}
-    initial={{ opacity: 0, y }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, amount: 0.2 }}
-    transition={{ duration: 0.6, delay, ease: "easeOut" }}
-  >
-    {children}
-  </motion.div>
-);
-
-const ActionButton = ({
-  href,
-  variant = "primary",
-  children,
-  className = "",
-}) => {
-  const baseClasses =
-    "group inline-flex items-center px-8 py-4 rounded-full font-semibold transition-all duration-500 hover:scale-[1.02]";
-  const variants = {
-    primary:
-      "bg-gradient-to-r from-accent to-purple-500 text-black dark:text-white hover:shadow-xl hover:shadow-accent/25",
-    secondary:
-      "bg-white/10 text-black dark:text-white border border-white/20 hover:bg-white/20",
-  };
-
-  const contentClasses = `${baseClasses} ${variants[variant]} ${className}`;
-  if (href) {
-    return (
-      <Link href={href} className={contentClasses}>
-        {children}
-      </Link>
-    );
+    id: "ring-1",
+    number: 25,
+    suffix: "K+",
+    label: "Active Daily Campus Users",
+    href: null
   }
-  return (
-    <button className={contentClasses}>
-      {children}
-    </button>
-  );
+];
+
+const FEATURES = [
+  {
+    icon: Calendar,
+    title: "Smart Curriculum Planner",
+    description: "Map syllabi, track lesson progressions, and auto-align department goals with a seamless drag-and-drop timeline.",
+    color: "text-blue-500",
+    bg: "bg-blue-500/10"
+  },
+  {
+    icon: UserCheck,
+    title: "AI Attendance Engine",
+    description: "Eliminate manual proxies with smart verification, real-time absence alerts, and comprehensive streak logging.",
+    color: "text-purple-500",
+    bg: "bg-purple-500/10"
+  },
+  {
+    icon: BarChart3,
+    title: "Predictive Insights",
+    description: "Identify struggling students early and gauge curriculum velocity with advanced data dashboards.",
+    color: "text-emerald-500",
+    bg: "bg-emerald-500/10"
+  }
+];
+
+const ROLE_DATA = {
+  admins: {
+    title: "Centralized Campus Control",
+    description: "Manage multiple departments, cross-verify compliance criteria, automate institutional audit reports, and broadcast critical alerts effortlessly.",
+    points: ["Multi-branch sync", "Automated compliance audits", "Role-based permission gating"]
+  },
+  educators: {
+    title: "Focus on Teaching, Not Paperwork",
+    description: "Log dynamic syllabus milestones in seconds, track student attendance streaks, and automatically flag performance anomalies.",
+    points: ["One-click attendance grids", "Dynamic lesson trackers", "Instant parent notifications"]
+  },
+  students: {
+    title: "A Calmer, Connected Journey",
+    description: "Stay perfectly aligned with department timelines, track your personal attendance thresholds to avoid penalties, and receive centralized updates.",
+    points: ["Real-time threshold alerts", "Syllabus tracking dashboard", "Direct assignment portals"]
+  }
 };
 
-export default function AboutPage() {
-  const { theme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted ? theme === "dark" : true;
-  const [scrollY, setScrollY] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+const FAQ_ITEMS = [
+  {
+    question: "How does the AI Attendance Engine prevent proxy attendance?",
+    answer: "Our AI Attendance Engine integrates intelligent multi-layered verification—including automated anomaly detection and real-time streak monitoring—to validate records effortlessly without manual intervention."
+  },
+  {
+    question: "Can the Smart Curriculum Planner adjust to sudden calendar shifts?",
+    answer: "Absolutely. The intuitive drag-and-drop timeline updates dependent curriculum milestones globally, instantly broadcasting the adjusted velocity across your specific department layout."
+  },
+  {
+    question: "Is data synchronized in real-time across multiple branches?",
+    answer: "Yes. Learnova features built-in multi-branch syncing. Any institutional directive, audit report update, or compliance adjustment updates across all connected campuses immediately."
+  },
+  {
+    question: "What platform analytics are visible to students?",
+    answer: "Students receive dedicated dashboards highlighting active attendance thresholds to bypass credit penalties, upcoming assignment deadlines, and aligned syllabus timelines."
+  }
+];
 
-  // Memoized mouse tracking with throttling
-  const handleMouseMove = useCallback((e) => {
-    setMousePosition({ x: e.clientX, y: e.clientY });
-  }, []);
+// --- High-Fidelity Child Components ---
 
-  const handleScroll = useCallback(() => {
-    setScrollY(window.scrollY);
-  }, []);
-
-  const handleAnimationComplete = useCallback(() => {
-  }, []);
-
-  useEffect(() => {
-    // Throttled event listeners
-    let scrollTimeout;
-    let mouseTimeout;
-
-    const throttledScroll = () => {
-      if (!scrollTimeout) {
-        scrollTimeout = setTimeout(() => {
-          handleScroll();
-          scrollTimeout = null;
-        }, 16); // ~60fps
-      }
-    };
-
-    const throttledMouseMove = (e) => {
-      if (!mouseTimeout) {
-        mouseTimeout = setTimeout(() => {
-          handleMouseMove(e);
-          mouseTimeout = null;
-        }, 32); // ~30fps
-      }
-    };
-
-    window.addEventListener("scroll", throttledScroll, { passive: true });
-    window.addEventListener("mousemove", throttledMouseMove, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", throttledScroll);
-      window.removeEventListener("mousemove", throttledMouseMove);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      if (mouseTimeout) clearTimeout(mouseTimeout);
-    };
-  }, [handleScroll, handleMouseMove]);
-
-  useEffect(() => {
-    if (analytics) {
-      logEvent(analytics, "page_view", { page: "about" });
-    }
-  }, []);
-
-  // Memoized style calculations
-  const mouseOrbStyle = useMemo(
-    () => ({
-      left: mousePosition.x - 192,
-      top: mousePosition.y - 192,
-      transition: "all 1.2s ease-out",
-    }),
-    [mousePosition.x, mousePosition.y]
+function Reveal({ children, className = "", delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.6, delay, ease: "easeOut" }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
+}
 
-  const gridTransform = useMemo(
-    () => ({
-      transform: `translateY(${scrollY * 0.2}px)`,
-    }),
-    [scrollY]
+function SectionBadge({ icon: Icon, text, gradient, borderClass, iconClass, textClass }) {
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border bg-gradient-to-r ${gradient} ${borderClass}`}>
+      <Icon className={`w-4 h-4 ${iconClass}`} />
+      <span className={`text-xs font-semibold tracking-wide uppercase ${textClass}`}>{text}</span>
+    </div>
   );
+}
+
+function ActionButton({ children, href }) {
+  return (
+    <Link
+      href={href}
+      className="group inline-flex items-center justify-center px-6 py-3 rounded-xl bg-black text-white dark:bg-white dark:text-black font-medium transition-all duration-300 hover:opacity-90 shadow-md hover:shadow-lg text-sm"
+    >
+      {children}
+    </Link>
+  );
+}
+
+// Custom Accordion Item for the FAQ Section
+function FAQAccordionItem({ question, answer, isOpen, onToggle }) {
+  return (
+    <div className="border border-gray-200/60 dark:border-white/5 bg-white dark:bg-zinc-900/20 backdrop-blur-md rounded-2xl overflow-hidden transition-all duration-300">
+      <button
+        onClick={onToggle}
+        className="w-full flex justify-between items-center p-5 md:p-6 text-left font-semibold text-black dark:text-zinc-200 hover:text-purple-600 dark:hover:text-purple-400 transition-colors focus:outline-none"
+      >
+        <span className="text-sm md:text-base leading-relaxed">{question}</span>
+        <ChevronDown 
+          className={`w-5 h-5 text-purple-500 shrink-0 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} 
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          >
+            <div className="px-5 pb-5 md:px-6 md:pb-6 text-xs md:text-sm text-muted-foreground leading-relaxed border-t border-gray-100 dark:border-white/[0.02] pt-4">
+              {answer}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AnimatedCounter({ to, suffix }) {
+  return (
+    <span>
+      {to}
+      {suffix}
+    </span>
+  );
+}
+
+function CommentSection() {
+  const [comments, setComments] = useState([
+    { id: 1, user: "Dr. Evelyn Vance", role: "Dean of Academics", body: "The recent curriculum planning updates allowed our computer science department to map compliance standards in half the time.", time: "2 hours ago" }
+  ]);
+  const [newComment, setNewComment] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    setComments([
+      ...comments,
+      {
+        id: Date.now(),
+        user: "Faculty Coordinator",
+        role: "Department Head",
+        body: newComment,
+        time: "Just now"
+      }
+    ]);
+    setNewComment("");
+  };
+
+  return (
+    <div className="w-full bg-white dark:bg-zinc-900/50 rounded-2xl border border-gray-200/60 dark:border-white/5 p-6 md:p-8 backdrop-blur-md">
+      <div className="flex items-center gap-3 mb-6">
+        <MessageSquare className="w-6 h-6 text-purple-500" />
+        <h3 className="text-xl font-bold text-black dark:text-white">Campus Notice Board & Logs</h3>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mb-8">
+        <textarea
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder="Log administrative feedback or department updates..."
+          rows={3}
+          className="w-full p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-black/30 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500 transition-all text-black dark:text-white resize-none"
+        />
+        <div className="mt-3 flex justify-end">
+          <button type="submit" className="px-5 py-2 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors">
+            Post Entry
+          </button>
+        </div>
+      </form>
+
+      <div className="space-y-4">
+        {comments.map((c) => (
+          <div key={c.id} className="p-4 rounded-xl bg-gray-50/50 dark:bg-white/[0.01] border border-gray-100 dark:border-white/[0.02]">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <span className="text-sm font-semibold text-black dark:text-white">{c.user}</span>
+                <span className="text-xs text-muted-foreground ml-2">({c.role})</span>
+              </div>
+              <span className="text-[11px] text-zinc-400">{c.time}</span>
+            </div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300 mt-2 leading-relaxed">{c.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Main Page Component ---
+export default function Page() {
+  const [hoveredRing, setHoveredRing] = useState(null);
+  const [activeRole, setActiveRole] = useState("admins");
+  const [openFaqIdx, setOpenFaqIdx] = useState(null);
 
   return (
     <>
-      {/* Background Effects */}
-      <div className="fixed inset-0 -z-10 bg-background">
-        {isDark && <DarkVeil />}
-
-        {/* Mouse-following gradient orb */}
-        <div
-          className="absolute w-96 h-96 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-full blur-3xl"
-          style={mouseOrbStyle}
-        />
-
-        {/* Floating particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          {PARTICLES_DATA.map((particle) => (
-            <div
-              key={particle.id}
-              className="absolute w-1 h-1 bg-accent/20 rounded-full animate-float"
-              style={{
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-                animationDelay: `${particle.delay}s`,
-                animationDuration: `${particle.duration}s`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="min-h-screen relative z-50">
-        <Navbar />
-
-        {/* Hero Section */}
+      <Navbar />
+      <div className="min-h-screen bg-background text-foreground selection:bg-purple-500/30">
+        
+        {/* Premium Academic Performance Metrics */}
         <section
-          id="hero"
-          className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
+          id="stats"
+          className="py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
         >
-          <div
-            className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
-              backgroundSize: "50px 50px",
-              ...gridTransform,
-            }}
-          />
-
-          <div className="max-w-4xl mx-auto text-center relative">
-            <SectionBadge icon={Sparkles} text="Introducing Learnova" />
-
-            <div className="flex flex-wrap justify-center items-center mb-8 text-center gap-x-6 gap-y-4">
-              <SplitText
-                text="Transforming"
-                className="text-4xl sm:text-5xl md:text-7xl font-bold text-black dark:text-white text-balance"
-                delay={0.05}
-                duration={0.8}
-                ease="power3.out"
-                splitType="chars"
-                from={{ opacity: 0, y: 100, rotateX: -90 }}
-                to={{ opacity: 1, y: 0, rotateX: 0 }}
-                threshold={0.1}
-                rootMargin="-100px"
-                textAlign="center"
-                onLetterAnimationComplete={handleAnimationComplete}
-              />
-              <SplitText
-                text="Education"
-                className="text-4xl sm:text-5xl md:text-7xl font-bold bg-gradient-to-r from-accent via-purple-400 to-pink-400 bg-clip-text text-transparent text-balance"
-                delay={0.05}
-                duration={0.8}
-                ease="power3.out"
-                splitType="chars"
-                from={{ opacity: 0, y: 100, rotateX: -90 }}
-                to={{ opacity: 1, y: 0, rotateX: 0 }}
-                threshold={0.1}
-                rootMargin="-100px"
-                textAlign="center"
-                onLetterAnimationComplete={handleAnimationComplete}
-              />
-            </div>
-
-            <h1 className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-3xl mx-auto font-normal">
-              The most advanced platform for{" "}
-              <span className="text-accent font-semibold">
-                curriculum planning
-              </span>{" "}
-              and{" "}
-              <span className="text-purple-400 font-semibold">
-                attendance management
-              </span>
-              , designed for smooth academic management.
-            </h1>
-          </div>
-        </section>
-
-        {/* Mission Section */}
-        <section
-          id="mission"
-          className="md:py-20 px-4 sm:px-6 lg:px-8 relative"
-        >
-          <div className="max-w-7xl mx-auto">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <Reveal className="space-y-8">
-                <SectionBadge icon={Sparkles} text="Our Mission" />
-
-                <h2 className="text-2xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-accent bg-clip-text text-transparent">
-                  Empowering Educational Excellence
+          <div className="max-w-7xl mx-auto relative">
+            <div className="grid lg:grid-cols-12 gap-16 items-center">
+              
+              {/* Left Column: Contextual Messaging */}
+              <Reveal className="lg:col-span-5 space-y-6">
+                <SectionBadge
+                  icon={TrendingUp}
+                  text="Institutional Impact"
+                  gradient="from-blue-500/10 to-purple-500/10 dark:from-blue-500/20 dark:to-purple-500/20"
+                  borderClass="border-blue-200/50 dark:border-blue-500/30"
+                  iconClass="text-blue-500"
+                  textClass="text-blue-700 dark:text-blue-300"
+                />
+                <h2 className="text-4xl md:text-5xl font-bold text-black dark:text-white tracking-tight leading-tight">
+                  Measurable Academic Operational Efficiency
                 </h2>
-
-                <div className="space-y-6">
-                  <p className="md:text-lg text-muted-foreground leading-relaxed">
-                    At Learnova, our mission is to harness the power of{" "}
-                    <span className="text-accent font-semibold">
-                      technology
-                    </span>{" "}
-                    to make education more efficient, engaging, and equitable.
-                    We address the inefficiencies of traditional systems—manual
-                    attendance, siloed data, and limited student interaction—by
-                    delivering{" "}
-                    <span className="text-purple-400 font-semibold">
-                      integrated, intuitive solutions
-                    </span>
-                    .
-                  </p>
-
-                  <p className="md:text-lg text-gray-400 leading-relaxed">
-                    With Learnova, teachers can teach without distractions,
-                    students can learn with purpose, and institutions can create
-                    environments where every learner thrives.
-                  </p>
+                <p className="text-lg text-muted-foreground leading-relaxed">
+                  Hover over our structural hubs to review platform milestones. We embed robust data layers straight into modern campuses to elevate productivity and engagement metrics.
+                </p>
+                <div className="pt-4 flex flex-wrap gap-4">
+                  <ActionButton href="/case-studies/impact">
+                    View Impact Reports
+                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                  </ActionButton>
                 </div>
-
-                <ActionButton href="/activity">
-                  Learn More
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                </ActionButton>
               </Reveal>
 
-              <Reveal className="relative" delay={0.1}>
-                <div className="bg-gradient-to-br from-purple-500/10 via-accent/10 to-pink-500/10 rounded-3xl h-96 flex items-center justify-center border border-purple-500/20 backdrop-blur-sm relative overflow-hidden group hover:scale-[1.02] transition-all duration-700">
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                  <div className="absolute top-4 right-4 w-3 h-3 bg-accent/60 rounded-full animate-pulse" />
-                  <div
-                    className="absolute bottom-6 left-6 w-2 h-2 bg-purple-400/60 rounded-full animate-pulse"
-                    style={{ animationDelay: "1s" }}
+              {/* Right Column: High-Fidelity Orbital Interactive Diagrams */}
+              <Reveal className="lg:col-span-7 flex flex-col md:flex-row items-center justify-center gap-12" delay={0.1}>
+                
+                {/* Concentric Interactive Rings Diagram Container */}
+                <div className="relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center bg-black/5 dark:bg-white/[0.02] rounded-full border border-gray-200/50 dark:border-white/5 backdrop-blur-sm shadow-inner">
+                  
+                  {/* Outer Orbital Layer - Ring 3 */}
+                  <div 
+                    onMouseEnter={() => setHoveredRing(0)}
+                    onMouseLeave={() => setHoveredRing(null)}
+                    className={`absolute rounded-full border-2 border-dashed transition-all duration-700 cursor-pointer flex items-center justify-center
+                      ${hoveredRing === 0 
+                        ? "w-[95%] h-[95%] border-purple-500 bg-purple-500/[0.02] scale-105 rotate-45" 
+                        : "w-[90%] h-[90%] border-purple-500/20 dark:border-purple-500/10"
+                      }`}
                   />
 
-                  <div className="text-center z-10">
-                    <div className="relative mb-6">
-                      <GraduationCap className="h-24 w-24 text-black dark:text-white mx-auto group-hover:scale-110 transition-transform duration-700" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-purple-500/20 rounded-full blur-xl group-hover:blur-2xl transition-all duration-700" />
+                  {/* Middle Orbital Layer - Ring 2 */}
+                  <div 
+                    onMouseEnter={() => setHoveredRing(1)}
+                    onMouseLeave={() => setHoveredRing(null)}
+                    className={`absolute rounded-full border border-double transition-all duration-700 cursor-pointer flex items-center justify-center
+                      ${hoveredRing === 1 
+                        ? "w-[75%] h-[75%] border-blue-400 bg-blue-500/[0.02] -rotate-45" 
+                        : "w-[70%] h-[70%] border-blue-500/20 dark:border-blue-500/10"
+                      }`}
+                  />
+
+                  {/* Inner Orbital Layer - Ring 1 */}
+                  <div 
+                    onMouseEnter={() => setHoveredRing(2)}
+                    onMouseLeave={() => setHoveredRing(null)}
+                    className={`absolute rounded-full border transition-all duration-700 cursor-pointer flex items-center justify-center
+                      ${hoveredRing === 2 
+                        ? "w-[55%] h-[55%] border-emerald-400 bg-emerald-500/[0.02] scale-95" 
+                        : "w-[50%] h-[50%] border-emerald-500/20 dark:border-emerald-500/10"
+                      }`}
+                  />
+
+                  {/* Core Dynamic Focal Node */}
+                  <div className="relative z-10 w-24 h-24 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-xl transition-transform duration-500 hover:scale-110 flex items-center justify-center">
+                    <div className="w-full h-full bg-background rounded-full flex flex-col items-center justify-center text-center p-2">
+                      <Award className="w-6 h-6 text-purple-500 animate-pulse" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Live</span>
                     </div>
-                    <p className="text-xl font-semibold text-black dark:text-white group-hover:text-accent transition-colors duration-500">
-                      Transforming Education
-                    </p>
-                    <p className="text-gray-400 mt-2">
-                      One Institution at a Time
-                    </p>
                   </div>
                 </div>
+
+                {/* Grid-List Metrics */}
+                <div className="flex-1 w-full space-y-4">
+                  {STATS_ITEMS.map((stat, idx) => {
+                    const isSelected = hoveredRing === idx;
+                    return (
+                      <div
+                        key={stat.id}
+                        onMouseEnter={() => setHoveredRing(idx)}
+                        onMouseLeave={() => setHoveredRing(null)}
+                        className={`group block p-4 rounded-2xl border transition-all duration-500 cursor-pointer
+                          ${isSelected 
+                            ? "bg-purple-50/60 dark:bg-purple-900/10 border-purple-500/40 translate-x-2 shadow-sm" 
+                            : "bg-white/50 dark:bg-black/20 border-gray-100 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10"
+                          }`}
+                      />
+                    );
+                  })}
+                </div>
+
               </Reveal>
             </div>
           </div>
         </section>
 
-        {/* Values Section */}
-        <section
-          id="values"
-          className="py-20 px-4 sm:px-6 lg:px-8 relative"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-purple-900/5 to-black/40 backdrop-blur-3xl" />
-
-          <div className="max-w-7xl mx-auto relative">
-            <Reveal className="text-center mb-20">
+        {/* --- FEATURE GRID --- */}
+        <section id="features" className="py-20 bg-gray-50/40 dark:bg-zinc-950/40 border-y border-gray-100 dark:border-white/[0.02]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Reveal className="text-center max-w-3xl mx-auto mb-16 space-y-4">
               <SectionBadge
-                icon={Heart}
-                text="Our Values"
-                gradient="from-accent/20 to-purple-500/20"
-                borderColor="accent/30"
-                textColor="accent"
+                icon={Zap}
+                text="Engineered for Scale"
+                gradient="from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20"
+                borderClass="border-purple-200/50 dark:border-purple-500/30"
+                iconClass="text-purple-500"
+                textClass="text-purple-700 dark:text-purple-300"
               />
-
-              <h2 className="text-4xl md:text-5xl font-bold text-black dark:text-white mb-6">
-                Core Principles That Drive Us
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-black dark:text-white">
+                Intelligent Frameworks Built for Modern Classrooms
               </h2>
-              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                Our core values reflect what makes Learnova authentic and
-                trustworthy for schools, teachers, parents, and students.
-              </p>
-            </Reveal>
-
-            <div className="grid md:grid-cols-3 gap-8 items-stretch">
-              {VALUES_DATA.map((value, index) => (
-         <Reveal key={value.title} delay={index * 0.08}>
-             <Card className="group bg-white dark:bg-white/40 border-gray-200 dark:border-white/10 backdrop-blur-xl hover:border-accent/50 transition-all duration-700 hover:scale-[1.02]">    
-                  <CardHeader className="text-center pb-4">
-                      <div
-                        className={`mx-auto w-20 h-20 bg-gradient-to-br ${value.gradient} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-500 relative overflow-hidden`}
-                      >
-                        <value.icon className="h-10 w-10 text-black dark:text-black dark:text-white relative z-10" />
-                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      </div>
-                      <CardTitle className="text-black dark:text-black dark:text-white text-xl group-hover:text-accent transition-colors duration-500">
-                        {value.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors duration-500">
-                        {value.description}
-                      </CardDescription>
-                    </CardContent>
-                  </Card>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Team Section */}
-        <section id="team" className="py-20 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            <Reveal className="text-center mb-20">
-              <SectionBadge
-                icon={Users}
-                text="Our Team"
-                gradient="from-emerald-500/20 to-teal-500/20"
-                borderColor="emerald-500/30"
-                textColor="emerald-400"
-              />
-
-              <h2 className="text-4xl md:text-5xl font-bold text-black dark:text-white mb-6">
-                Meet the Visionaries
-              </h2>
-              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                The passionate educators and technologists driving Learnova's
-                innovation and success.
+              <p className="text-muted-foreground">
+                Simplify complex department operations with an interconnected ecosystem built on cutting-edge design paradigms.
               </p>
             </Reveal>
 
             <div className="grid md:grid-cols-3 gap-8">
-              {TEAM_MEMBERS.map((member, index) => (
-                <Reveal key={member.name} delay={index * 0.08}>
-                  <Card className="group bg-white dark:bg-white/70 dark:bg-black/40 border-gray-200 dark:border-white/10 backdrop-blur-xl hover:border-accent/50 transition-all duration-700 hover:scale-[1.02]">
-                    <CardContent className="pt-8 text-center">
-                      <div className="relative mb-6">
-                        <div
-                          className={`w-28 h-28 bg-gradient-to-br ${member.color} rounded-full flex items-center justify-center mx-auto group-hover:scale-105 transition-transform duration-500 relative overflow-hidden`}
-                        >
-                          <span className="text-3xl font-bold text-black dark:text-white relative z-10">
-                            {member.initials}
-                          </span>
-                          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              {FEATURES.map((feat, i) => {
+                const IconComp = feat.icon;
+                return (
+                  <Reveal key={i} delay={i * 0.1}>
+                    <div className="h-full p-6 bg-white dark:bg-zinc-900/40 border border-gray-200/60 dark:border-white/5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1">
+                      <div>
+                        <div className={`w-12 h-12 ${feat.bg} rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                          <IconComp className={`w-6 h-6 ${feat.color}`} />
                         </div>
-
-                        <div className="absolute -top-2 -right-2 w-8 h-8 bg-accent/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 transform scale-75 group-hover:scale-100">
-                          <Sparkles className="w-4 h-4 text-black dark:text-white" />
-                        </div>
+                        <h3 className="text-lg font-bold text-black dark:text-white mb-2">{feat.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{feat.description}</p>
                       </div>
-
-                      <h3 className="text-2xl font-semibold text-black dark:text-white mb-2 group-hover:text-accent transition-colors duration-500">
-                        {member.name}
-                      </h3>
-                      <p className="text-accent font-medium mb-4 text-lg">
-                        {member.role}
-                      </p>
-                      <p className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors duration-500">
-                        {member.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Stats Section */}
-        <section
-          id="stats"
-          className="py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-accent/10 via-purple-500/10 to-pink-500/10 backdrop-blur-3xl">
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                backgroundImage: `radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.2) 0%, transparent 70%), radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.2) 0%, transparent 70%)`,
-              }}
-            />
-          </div>
-
-          <div className="max-w-7xl mx-auto relative">
-            <Reveal className="text-center mb-20">
-              <SectionBadge
-                icon={TrendingUp}
-                text="Our Impact"
-                gradient="from-white/10 to-white/10"
-                borderColor="white/20"
-                textColor="white"
-              />
-
-              <h2 className="text-4xl md:text-5xl font-bold text-black dark:text-white mb-6">
-                Transforming Education Globally
-              </h2>
-              <p className="text-xl text-black dark:text-white/80 max-w-3xl mx-auto">
-                Measurable results that demonstrate our commitment to
-                educational excellence and institutional success.
-              </p>
-            </Reveal>
-
-            <div className="grid md:grid-cols-4 gap-8">
-              {STATS_DATA.map((stat, index) => (
-                <Reveal key={stat.label} delay={index * 0.08}>
-                  <div className="group text-center">
-                    <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 hover:border-accent/40 transition-all duration-700 hover:scale-[1.02] hover:shadow-2xl">
-                      <stat.icon className="w-12 h-12 text-accent mx-auto mb-6 group-hover:scale-110 transition-transform duration-500" />
-                      <div className="text-4xl md:text-5xl font-bold text-black dark:text-white mb-3 group-hover:text-accent transition-colors duration-500">
-                        {stat.number}
-                      </div>
-                      <p className="text-black dark:text-white/80 font-medium text-lg group-hover:text-black dark:text-white transition-colors duration-500">
-                        {stat.label}
-                      </p>
                     </div>
-                  </div>
-                </Reveal>
-              ))}
+                  </Reveal>
+                );
+              })}
             </div>
           </div>
         </section>
 
-        {/* Impact Section */}
-        <section
-          id="impact"
-          className="py-20 px-4 sm:px-6 lg:px-8 relative"
-        >
-          <div className="max-w-7xl mx-auto relative">
-            <Reveal className="text-center mb-16">
-              <SectionBadge icon={Sparkles} text="Our Impact" />
-              <h2 className="text-4xl md:text-5xl font-bold text-black dark:text-white mb-6">
-                Transforming Education for Everyone
+        {/* --- ROLE-BASED TAILORED WORKFLOWS --- */}
+        <section id="roles" className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-12 gap-12 items-center">
+            
+            <Reveal className="lg:col-span-5 space-y-6">
+              <SectionBadge
+                icon={GraduationCap}
+                text="Tailored Workflows"
+                gradient="from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20"
+                borderClass="border-emerald-200/50 dark:border-emerald-500/30"
+                iconClass="text-emerald-500"
+                textClass="text-emerald-700 dark:text-emerald-300"
+              />
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-black dark:text-white">
+                One Platform. Optimized Roles.
               </h2>
-              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                Learnova empowers teachers, students, institutions, and parents
-                with meaningful outcomes.
+              <p className="text-muted-foreground">
+                Select your perspective to explore how our specialized UI architecture satisfies institutional demands across roles.
+              </p>
+
+              {/* Tab Toggles */}
+              <div className="flex bg-gray-100 dark:bg-zinc-900/80 p-1.5 rounded-xl border border-gray-200/60 dark:border-white/5 space-x-1">
+                <button
+                  onClick={() => setActiveRole("admins")}
+                  className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all ${activeRole === "admins" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <div className="flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" /> Admins</div>
+                </button>
+                <button
+                  onClick={() => setActiveRole("educators")}
+                  className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all ${activeRole === "educators" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <div className="flex items-center justify-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Educators</div>
+                </button>
+                <button
+                  onClick={() => setActiveRole("students")}
+                  className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all ${activeRole === "students" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <div className="flex items-center justify-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Students</div>
+                </button>
+              </div>
+            </Reveal>
+
+            {/* Dynamic Content Card */}
+            <div className="lg:col-span-7">
+              <motion.div
+                key={activeRole}
+                initial={{ opacity: 0, x: 15 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4 }}
+                className="p-8 bg-white dark:bg-zinc-900/30 border border-gray-200/60 dark:border-white/5 rounded-2xl shadow-xl backdrop-blur-sm relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/5 dark:bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                <h3 className="text-xl font-bold text-black dark:text-white mb-3">{ROLE_DATA[activeRole].title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-6">{ROLE_DATA[activeRole].description}</p>
+                <ul className="space-y-3">
+                  {ROLE_DATA[activeRole].points.map((pt, idx) => (
+                    <li key={idx} className="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+                      <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                      <span>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
+        {/* --- NEW SECTION: FAQ ACCORDION --- */}
+        <section id="faqs" className="py-20 bg-gray-50/40 dark:bg-zinc-950/40 border-y border-gray-100 dark:border-white/[0.02]">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Reveal className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+              <SectionBadge
+                icon={HelpCircle}
+                text="Common Queries"
+                gradient="from-purple-500/10 to-indigo-500/10 dark:from-purple-500/20 dark:to-indigo-500/20"
+                borderClass="border-purple-200/50 dark:border-purple-500/30"
+                iconClass="text-purple-500"
+                textClass="text-purple-700 dark:text-indigo-300"
+              />
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-black dark:text-white">
+                Frequently Asked Questions
+              </h2>
+              <p className="text-muted-foreground text-sm md:text-base">
+                Got structural questions about platform functionalities? Look through our documented answers below.
               </p>
             </Reveal>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 items-stretch">
-              {IMPACT_DATA.map((impact, index) => (
-                <Reveal key={impact.title} delay={index * 0.08}>
-                  <div className="group bg-card backdrop-blur-xl rounded-3xl p-8 border border-border hover:border-accent/40 transition-all duration-700 hover:scale-[1.02] hover:shadow-2xl hover:shadow-accent/25 text-center">
-                    <impact.icon className="w-12 h-12 text-accent mx-auto mb-6 group-hover:scale-110 transition-transform duration-500" />
-                    <h3 className="text-xl font-semibold text-black dark:text-white mb-3 group-hover:text-accent transition-colors duration-500">
-                      {impact.title}
-                    </h3>
-                    <p className="text-muted-foreground leading-relaxed text-sm group-hover:text-foreground transition-colors duration-500">
-                      {impact.description}
-                    </p>
-                  </div>
-                </Reveal>
+            <Reveal className="space-y-4" delay={0.1}>
+              {FAQ_ITEMS.map((faq, index) => (
+                <FAQAccordionItem
+                  key={index}
+                  question={faq.question}
+                  answer={faq.answer}
+                  isOpen={openFaqIdx === index}
+                  onToggle={() => setOpenFaqIdx(openFaqIdx === index ? null : index)}
+                />
               ))}
-            </div>
+            </Reveal>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section id="get-started" className="py-20 px-4 sm:px-6 lg:px-8">
-          <Reveal className="max-w-4xl mx-auto text-center">
-            <div className="bg-gradient-to-br dark:from-black/50 to-purple-900/30 rounded-3xl p-12 border border-accent/30 backdrop-blur-xl hover:border-accent/50 transition-all duration-700">
-              <h2 className="text-3xl md:text-4xl font-bold text-black dark:text-white mb-6">
-                Ready to Transform Your Institution?
-              </h2>
-              <p className=" text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Join hundreds of educational institutions that trust Learnova to
-                streamline their administrative processes and improve student
-                outcomes.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <ActionButton href="/auth">
-                  Get Started Today
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                </ActionButton>
-                <ActionButton href="/contact" variant="secondary">
-                  Schedule Demo
-                </ActionButton>
-              </div>
-            </div>
+        {/* Comment Section Block */}
+        <section id="comments" className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <CommentSection />
           </Reveal>
         </section>
       </div>
-
-      <style jsx>{`
-        @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0px) rotate(0deg);
-            opacity: 0.3;
-          }
-          50% {
-            transform: translateY(-15px) rotate(90deg);
-            opacity: 0.8;
-          }
-        }
-        .animate-float {
-          animation: float ease-in-out infinite;
-        }
-      `}</style>
     </>
   );
 }

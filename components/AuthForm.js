@@ -21,6 +21,8 @@ export default function AuthForm({
   setFullName,
   instituteName,
   setInstituteName,
+  inviteCode,
+  setInviteCode,
   errors,
   setErrors,
   isLoading,
@@ -48,6 +50,8 @@ export default function AuthForm({
       result = validateName(value, "Full Name");
     } else if (field === "instituteName") {
       result = validateRequired(value, "Institute Name");
+    } else if (field === "inviteCode") {
+      result = validateRequired(value, "Invite Code");
     } else if (field === "email") {
       result = validateEmail(value);
     } else if (field === "password") {
@@ -81,8 +85,8 @@ export default function AuthForm({
                   >
                     <IconComponent className="w-6 h-6 text-white" />
                   </div>
-                  <div className="text-left">
-                    <h4 className="font-semibold text-white">{config.title}</h4>
+                    <div className="text-left">
+                    <h4 className="font-semibold text-card-foreground">{config.title}</h4>
                     <p className="text-muted-foreground text-sm">
                       Click to change role
                     </p>
@@ -94,7 +98,7 @@ export default function AuthForm({
         </div>
       )}
 
-      <div className="bg-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border p-8">
+      <div className="bg-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border p-8 min-h-[620px] flex flex-col justify-between transition-all duration-300">
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-foreground mb-2">
             {isLogin ? "Welcome Back" : "Create Account"}
@@ -103,10 +107,10 @@ export default function AuthForm({
             {isLogin
               ? `Sign in to your ${
                   ROLE_CONFIG[selectedRole]?.title.toLowerCase() || "account"
-                }`
+                } account`
               : `Create your ${
                   ROLE_CONFIG[selectedRole]?.title.toLowerCase() || "account"
-                }`}
+                } account`}
           </p>
         </div>
 
@@ -128,8 +132,12 @@ export default function AuthForm({
                   placeholder="Enter your full name"
                   value={fullName}
                   onChange={(e) => {
-                    setFullName(e.target.value);
-                    clearError("fullName");
+                    const value = e.target.value;
+                    setFullName(value);
+
+                    if (errors.fullName) {
+                      validateField("fullName", value);
+                    }
                   }}
                   onBlur={(e) => validateField("fullName", e.target.value)}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -150,9 +158,13 @@ export default function AuthForm({
                     type="text"
                     placeholder="Enter your institute name"
                     value={instituteName}
-                    onChange={(e) => {
-                      setInstituteName(e.target.value);
-                      clearError("instituteName");
+                   onChange={(e) => {
+                      const value = e.target.value;
+                      setInstituteName(value);
+
+                      if (errors.instituteName) {
+                        validateField("instituteName", value);
+                      }
                     }}
                     onBlur={(e) => validateField("instituteName", e.target.value)}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -164,6 +176,38 @@ export default function AuthForm({
                   {errors.instituteName && (
                     <p className="text-red-400 text-sm mt-1">
                       {errors.instituteName}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(selectedRole === USER_ROLES.TEACHER || selectedRole === USER_ROLES.INSTITUTE) && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2 flex items-center justify-between">
+                    <span>Invite Code</span>
+                    <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full border border-border">Required for elevated access</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter your registration code"
+                    value={inviteCode}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setInviteCode(value);
+                      if (errors.inviteCode) {
+                        validateField("inviteCode", value);
+                      }
+                    }}
+                    onBlur={(e) => validateField("inviteCode", e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
+                      errors.inviteCode
+                        ? "border-red-500/50"
+                        : "border-border"
+                    }`}
+                  />
+                  {errors.inviteCode && (
+                    <p className="text-red-400 text-sm mt-1">
+                      {errors.inviteCode}
                     </p>
                   )}
                 </div>
@@ -182,8 +226,12 @@ export default function AuthForm({
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
-                  clearError("email");
+                  const value = e.target.value;
+                  setEmail(value);
+
+                  if (errors.email) {
+                    validateField("email", value);
+                  }
                 }}
                 onBlur={(e) => validateField("email", e.target.value)}
                 className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -207,8 +255,12 @@ export default function AuthForm({
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => {
-                  setPassword(e.target.value);
-                  clearError("password");
+                  const value = e.target.value;
+                  setPassword(value);
+
+                  if (errors.password) {
+                    validateField("password", value);
+                  }
                 }}
                 onBlur={(e) => validateField("password", e.target.value)}
                 className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-background text-foreground placeholder-muted-foreground ${
@@ -218,7 +270,7 @@ export default function AuthForm({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover: text-muted-foreground"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-muted-foreground"
               >
                 {showPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -230,42 +282,55 @@ export default function AuthForm({
             {errors.password && (
               <p className="text-red-400 text-sm mt-1">{errors.password}</p>
             )}
-            {!isLogin && password && (
-              <div className="mt-3 space-y-2">
-                <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${passwordStrength.barClass} ${passwordStrength.widthClass} transition-all duration-500`}
-                  />
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-400">Password Strength:</span>
-                  <span className={`font-semibold ${passwordStrength.textClass}`}>
-                    {passwordStrength.label}
-                  </span>
-                </div>
-              </div>
-            )}
             {!isLogin && !errors.password && (
               <p className="text-gray-400 text-xs mt-1">
                 Min 8 characters with upper, lower, number, and special character.
               </p>
             )}
             {!isLogin && (
+              <div className="mt-3 space-y-1.5 text-xs bg-slate-950/20 p-3 rounded-lg border border-border/50">
+                <p className="font-semibold text-slate-400 mb-1">Password Requirements:</p>
+                <div className="flex items-center gap-2">
+                  <span className={password.length >= 8 ? "text-green-400" : "text-gray-400"}>
+                    {password.length >= 8 ? "✓" : "○"} 8+ characters
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={/[A-Z]/.test(password) ? "text-green-400" : "text-gray-400"}>
+                    {/[A-Z]/.test(password) ? "✓" : "○"} At least one uppercase letter
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={/[a-z]/.test(password) ? "text-green-400" : "text-gray-400"}>
+                    {/[a-z]/.test(password) ? "✓" : "○"} At least one lowercase letter
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={/\d/.test(password) ? "text-green-400" : "text-gray-400"}>
+                    {/\d/.test(password) ? "✓" : "○"} At least one number
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={/[^A-Za-z0-9]/.test(password) ? "text-green-400" : "text-gray-400"}>
+                    {/[^A-Za-z0-9]/.test(password) ? "✓" : "○"} At least one special character
+                  </span>
+                </div>
+              </div>
+            )}
+            {!isLogin && password && (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400 font-medium">Password Strength</span>
+                  <span className="text-gray-400 font-medium">Password Strength:</span>
                   <span
                     data-testid="password-strength-label"
-                    className={`font-semibold transition-colors duration-300 ${
-                      password.length > 0 ? passwordStrength.textClass : "text-gray-500"
-                    }`}
+                    className={`font-semibold transition-colors duration-300 ${passwordStrength.textClass}`}
                   >
-                    {password.length > 0 ? passwordStrength.label : "None"}
+                    {passwordStrength.label}
                   </span>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full bg-gray-700/30 rounded-full overflow-hidden">
                   {[0, 1, 2, 3].map((index) => {
-                    const activeSegments = password.length > 0 ? Math.min(passwordStrength.score + 1, 4) : 0;
+                    const activeSegments = Math.min(passwordStrength.score + 1, 4);
                     const isFilled = index < activeSegments;
                     return (
                       <div
@@ -326,6 +391,7 @@ export default function AuthForm({
           </div>
 
           <button
+            type="button"
             onClick={onGoogleLogin}
             disabled={isLoading}
             className="mt-4 w-full bg-muted border border-border text-foreground py-3 px-4 rounded-xl font-medium hover:bg-muted/80 focus:ring-4 focus:ring-gray-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"

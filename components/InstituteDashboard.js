@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Users,
-  Calendar,
   Clock,
-  MapPin,
-  TrendingUp,
   Settings,
   Bell,
   Download,
   Plus,
   Search,
-  Filter,
   Eye,
   Edit,
   Trash2,
@@ -21,26 +18,19 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Shield,
   Activity,
-  BarChart3,
-  PieChart,
-  Upload,
-  RefreshCw,
-  Copy,
-  Check,
   X,
   Zap,
-  Key,
-  Sparkles,
   Building,
   Mail,
   Phone,
   Globe,
-  Calendar as CalendarIcon,
   User,
-  LogOut,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
+import ExportDropdown from "@/components/ui/ExportDropdown";
+import { exportToCSV, exportToPDF } from "@/utils/exportUtils";
 import { Navbar } from "./Navbar";
 import dynamic from "next/dynamic";
 import ChartSkeleton from "@/components/ui/ChartSkeleton";
@@ -52,9 +42,7 @@ const AttendanceTrendsChart = dynamic(
 );
 
 const InstituteDashboard = () => {
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedClass, setSelectedClass] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
@@ -63,140 +51,68 @@ const InstituteDashboard = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLoading, setIsLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = (format) => {
+    setIsExporting(true);
+    setTimeout(() => {
+      try {
+        const exportData = attendanceRequests.map(req => ({
+          Date: selectedDate,
+          'Student Name': req.student,
+          'Roll No': req.rollNo,
+          'Class': req.class,
+          'Status': req.status,
+        }));
+        
+        const filename = `institute_attendance_requests_${selectedDate}`;
+        
+        if (format === 'csv') {
+          exportToCSV(exportData, filename);
+        } else {
+          const columns = [
+            { header: 'Date', dataKey: 'Date' },
+            { header: 'Student', dataKey: 'Student Name' },
+            { header: 'Roll No', dataKey: 'Roll No' },
+            { header: 'Class', dataKey: 'Class' },
+            { header: 'Status', dataKey: 'Status' }
+          ];
+          exportToPDF(exportData, columns, `Institute Attendance Requests - ${selectedDate}`, filename);
+        }
+        toast.success(`Successfully exported as ${format.toUpperCase()}`);
+      } catch (err) {
+        console.error("Export failed:", err);
+        toast.error("Failed to export report");
+      } finally {
+        setIsExporting(false);
+      }
+    }, 500);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setInitialLoading(false), 1200);
     return () => clearTimeout(timer);
   }, []);
 
-  // Mock data - in real app, this would come from your backend
+  // Data fetched from /api/institute/stats
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState({
-    totalStudents: 1247,
-    totalTeachers: 45,
-    totalClasses: 67,
-    todayAttendance: 89.2,
-    weeklyTrend: "+2.4%",
-    activeClasses: 12,
-    pendingRequests: 8,
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    todayAttendance: 0,
+    weeklyTrend: "",
+    activeClasses: 0,
+    pendingRequests: 0,
   });
+  const [classes, setClasses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [attendanceRequests, setAttendanceRequests] = useState([]);
 
-  const [classes, setClasses] = useState([
-    {
-      id: 1,
-      name: "Computer Science A",
-      students: 35,
-      teacher: "Dr. Smith",
-      room: "CS-101",
-      time: "09:00-10:30",
-      semester: "4th",
-      section: "A",
-    },
-    {
-      id: 2,
-      name: "Mathematics B",
-      students: 42,
-      teacher: "Prof. Johnson",
-      room: "MATH-201",
-      time: "10:45-12:15",
-      semester: "6th",
-      section: "B",
-    },
-    {
-      id: 3,
-      name: "Physics C",
-      students: 28,
-      teacher: "Dr. Williams",
-      room: "PHY-301",
-      time: "13:30-15:00",
-      semester: "5th",
-      section: "A",
-    },
-    {
-      id: 4,
-      name: "Chemistry A",
-      students: 31,
-      teacher: "Prof. Brown",
-      room: "CHEM-101",
-      time: "15:15-16:45",
-      semester: "3rd",
-      section: "B",
-    },
-  ]);
-
-  const [teachers, setTeachers] = useState([
-    {
-      id: 1,
-      name: "Dr. Smith",
-      email: "smith@institute.edu",
-      classes: 3,
-      attendance: "92.1%",
-      status: "active",
-      department: "Computer Science",
-    },
-    {
-      id: 2,
-      name: "Prof. Johnson",
-      email: "johnson@institute.edu",
-      classes: 4,
-      attendance: "88.7%",
-      status: "active",
-      department: "Mathematics",
-    },
-    {
-      id: 3,
-      name: "Dr. Williams",
-      email: "williams@institute.edu",
-      classes: 2,
-      attendance: "94.3%",
-      status: "active",
-      department: "Physics",
-    },
-    {
-      id: 4,
-      name: "Prof. Brown",
-      email: "brown@institute.edu",
-      classes: 3,
-      attendance: "87.9%",
-      status: "active",
-      department: "Chemistry",
-    },
-  ]);
-
-  const [attendanceRequests, setAttendanceRequests] = useState([
-    {
-      id: 1,
-      student: "John Doe",
-      rollNo: "CS21B1010",
-      class: "Computer Science A",
-      reason: "Medical emergency",
-      time: "2 hours ago",
-      status: "pending",
-      location: "Home - GPS verified",
-    },
-    {
-      id: 2,
-      student: "Jane Smith",
-      rollNo: "CS21B1015",
-      class: "Mathematics B",
-      reason: "Family emergency",
-      time: "4 hours ago",
-      status: "pending",
-      location: "Hospital - GPS verified",
-    },
-    {
-      id: 3,
-      student: "Mike Johnson",
-      rollNo: "PHY21B1008",
-      class: "Physics C",
-      reason: "Transportation issue",
-      time: "6 hours ago",
-      status: "approved",
-      location: "Bus stop - GPS verified",
-    },
-  ]);
-
+  // Keep institute and currentUser as static placeholders
   // Mock institute data
-  const [institute] = useState({
+  const institute = {
     name: "Learnova Institute of Technology",
     code: "LIT001",
     email: "admin@learnova.edu",
@@ -205,29 +121,65 @@ const InstituteDashboard = () => {
     established: "2010",
     website: "www.learnova.edu",
     accreditation: "NAAC A++",
-  });
+  };
 
-  // Mock user data
-  const [currentUser] = useState({
+  const currentUser = {
     name: "Dr. Admin",
     role: "Institute Administrator",
     avatar:
       "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face",
-  });
+  };
 
+  // Fetch institute stats from API
   useEffect(() => {
-    const loadingTimer = setTimeout(() => {
-      setLoading(false);
-    }, 1500);
+    let mounted = true;
 
+    const fetchStats = async () => {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/institute/stats", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!mounted) return;
+
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.dashboardData) setDashboardData(data.dashboardData);
+          if (data.classes) setClasses(data.classes);
+          if (data.teachers) setTeachers(data.teachers);
+          if (data.attendanceRequests)
+            setAttendanceRequests(data.attendanceRequests);
+        } else {
+          setError("Failed to fetch institute data. Please try again.");
+        }
+      } catch (err) {
+        if (mounted) {
+          setError("Network error. Please check your connection and try again.");
+        }
+        console.error(err);
+      } finally {
+        if (mounted) {
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    if (user) fetchStats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  // Clock interval only
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(loadingTimer);
-    };
+    return () => clearInterval(timer);
   }, []);
 
   const formatTime = (date) => {
@@ -273,30 +225,47 @@ const InstituteDashboard = () => {
     color = "blue",
   }) => {
     const colorClasses = {
-      blue: "from-blue-500/20 to-blue-600/20 border-blue-500/30 text-blue-400",
-      green:
-        "from-green-500/20 to-green-600/20 border-green-500/30 text-green-400",
-      red: "from-red-500/20 to-red-600/20 border-red-500/30 text-red-400",
-      yellow:
-        "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30 text-yellow-400",
-      purple:
-        "from-purple-500/20 to-purple-600/20 border-purple-500/30 text-purple-400",
+      blue: {
+        gradient: "from-blue-500/20 to-blue-600/20",
+        border: "border-blue-500/30",
+        text: "text-blue-400",
+      },
+      green: {
+        gradient: "from-green-500/20 to-green-600/20",
+        border: "border-green-500/30",
+        text: "text-green-400",
+      },
+      red: {
+        gradient: "from-red-500/20 to-red-600/20",
+        border: "border-red-500/30",
+        text: "text-red-400",
+      },
+      yellow: {
+        gradient: "from-yellow-500/20 to-yellow-600/20",
+        border: "border-yellow-500/30",
+        text: "text-yellow-400",
+      },
+      purple: {
+        gradient: "from-purple-500/20 to-purple-600/20",
+        border: "border-purple-500/30",
+        text: "text-purple-400",
+      },
     };
+
+    const currentColor = colorClasses[color] || colorClasses.blue;
 
     return (
       <div
-        className={`bg-gradient-to-br ${colorClasses[color]} backdrop-blur-xl rounded-2xl border p-6 shadow-2xl hover:scale-105 transition-all duration-300`}
+        className={`bg-gradient-to-br ${currentColor.gradient} ${currentColor.border} backdrop-blur-xl rounded-2xl border p-6 shadow-2xl hover:scale-105 transition-all duration-300`}
       >
         <div className="flex items-center justify-between">
           <div>
             <p className="text-gray-300 text-sm font-medium">{title}</p>
-            <p
-              className={`text-2xl font-bold mt-1 ${
-                colorClasses[color].split(" ")[6]
-              }`}
-            >
+
+            <p className={`text-2xl font-bold mt-1 ${currentColor.text}`}>
               {value}
             </p>
+
             {subtitle && (
               <p
                 className={`text-sm mt-1 ${
@@ -309,12 +278,11 @@ const InstituteDashboard = () => {
               </p>
             )}
           </div>
+
           <div
-            className={`p-3 rounded-xl ${colorClasses[color].split(" ")[0]} ${
-              colorClasses[color].split(" ")[1]
-            }`}
+            className={`p-3 rounded-xl bg-gradient-to-br ${currentColor.gradient}`}
           >
-            <Icon className={`w-6 h-6 ${colorClasses[color].split(" ")[6]}`} />
+            <Icon className={`w-6 h-6 ${currentColor.text}`} />
           </div>
         </div>
       </div>
@@ -379,6 +347,7 @@ const InstituteDashboard = () => {
 
             {/* Notifications */}
             <button
+              aria-label="Notifications"
               className="relative p-2.5 bg-gray-800/60 hover:bg-gray-700/60 
                              rounded-xl border border-gray-600/40 transition-colors shadow-sm"
             >
@@ -461,7 +430,7 @@ const InstituteDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={() => setShowAddModal(true)}
-            className="group bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 border border-purple-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-102"
+            className="group bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 border border-purple-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-105"
           >
             <div className="flex items-center space-x-3">
               <Plus className="w-5 h-5 text-purple-400 group-hover:text-purple-300" />
@@ -474,19 +443,23 @@ const InstituteDashboard = () => {
             </div>
           </button>
 
-          <button className="group bg-gradient-to-r from-green-600/20 to-emerald-600/20 hover:from-green-600/30 hover:to-emerald-600/30 border border-green-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-102">
-            <div className="flex items-center space-x-3">
+          <ExportDropdown
+            onExport={handleExport}
+            isExporting={isExporting}
+            className="group w-full bg-gradient-to-r from-green-600/20 to-emerald-600/20 hover:from-green-600/30 hover:to-emerald-600/30 border border-green-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-105 flex justify-start items-center"
+          >
+            <div className="flex items-center space-x-3 text-left">
               <Download className="w-5 h-5 text-green-400 group-hover:text-green-300" />
-              <div className="text-left">
+              <div>
                 <div className="font-medium text-green-300">Export Reports</div>
                 <div className="text-sm text-gray-400">CSV/PDF formats</div>
               </div>
             </div>
-          </button>
+          </ExportDropdown>
 
           <button
             onClick={() => setActiveTab("settings")}
-            className="group bg-gradient-to-r from-orange-600/20 to-red-600/20 hover:from-orange-600/30 hover:to-red-600/30 border border-orange-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-102"
+            className="group bg-gradient-to-r from-orange-600/20 to-red-600/20 hover:from-orange-600/30 hover:to-red-600/30 border border-orange-500/30 rounded-xl p-4 transition-all duration-500 ease-in-out hover:scale-105"
           >
             <div className="flex items-center space-x-3">
               <Settings className="w-5 h-5 text-orange-400 group-hover:text-orange-300" />
@@ -628,7 +601,7 @@ const InstituteDashboard = () => {
             <button
               onClick={() => setShowAddModal(true)}
               disabled={isLoading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all duration-500 ease-in-out hover:scale-102 flex items-center shadow-xl"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all duration-500 ease-in-out hover:scale-105 flex items-center shadow-xl"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Class
@@ -641,20 +614,20 @@ const InstituteDashboard = () => {
           {filteredClasses.map((classItem) => (
             <div
               key={classItem.id}
-              className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl hover:scale-102 transition-all duration-500 ease-in-out"
+              className="bg-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl hover:scale-105 transition-all duration-500 ease-in-out"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex space-x-2">
-                  <button className="text-blue-400 hover:text-blue-300 p-2 bg-blue-500/20 rounded-lg border border-blue-500/30 transition-colors">
+                  <button aria-label="View class details" className="text-blue-400 hover:text-blue-300 p-2 bg-blue-500/20 rounded-lg border border-blue-500/30 transition-colors">
                     <Eye className="w-4 h-4" />
                   </button>
-                  <button className="text-green-400 hover:text-green-300 p-2 bg-green-500/20 rounded-lg border border-green-500/30 transition-colors">
+                  <button aria-label="Edit class" className="text-green-400 hover:text-green-300 p-2 bg-green-500/20 rounded-lg border border-green-500/30 transition-colors">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button className="text-red-400 hover:text-red-300 p-2 bg-red-500/20 rounded-lg border border-red-500/30 transition-colors">
+                  <button aria-label="Delete class" className="text-red-400 hover:text-red-300 p-2 bg-red-500/20 rounded-lg border border-red-500/30 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -765,7 +738,7 @@ const InstituteDashboard = () => {
               <button className="flex-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 px-3 py-2 rounded-xl transition-colors text-sm font-medium">
                 View Details
               </button>
-              <button className="bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 border border-gray-500/30 px-3 py-2 rounded-xl transition-colors">
+              <button aria-label="Edit teacher" className="bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 border border-gray-500/30 px-3 py-2 rounded-xl transition-colors">
                 <Edit className="w-4 h-4" />
               </button>
             </div>
@@ -787,13 +760,12 @@ const InstituteDashboard = () => {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-2 bg-black/40 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-xl"
           />
-          <button
-            disabled={isLoading}
+          <ExportDropdown
+            onExport={handleExport}
+            isExporting={isExporting}
+            label="Export"
             className="bg-gradient-to-r from-green-600 to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl flex items-center shadow-lg hover:shadow-2xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:brightness-110"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </button>
+          />
         </div>
       </div>
 
@@ -1038,7 +1010,7 @@ const InstituteDashboard = () => {
           <div className="mt-6">
             <button
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-4 rounded-xl transition-all duration-300 hover:scale-102"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105"
             >
               {isLoading ? "Saving..." : "Save Changes"}
             </button>
@@ -1050,6 +1022,30 @@ const InstituteDashboard = () => {
 
   if (initialLoading) {
     return <DashboardSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="fixed top-0 left-0 w-full z-50 shadow-xl border-b border-white/10 bg-gradient-to-r from-gray-900/90 via-gray-800/90 to-gray-900/90 backdrop-blur-xl">
+          <Navbar />
+        </div>
+        <div className="text-center pt-20 px-4">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105"
+          >
+            <RefreshCw className="w-4 h-4 mr-2 inline" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
