@@ -14,7 +14,7 @@ import AllProviders from "./providers/AllProviders";
 export { metadata } from "@/lib/seo/siteMetadata";
 import { siteStructuredData } from "@/lib/seo/siteStructuredData";
 import NextTopLoader from "nextjs-toploader";
-import CommandPaletteWrapper from "@/components/CommandPaletteWrapper";
+import CommandPalette from "../components/CommandPalette";
 import RouteAnnouncer from "@/components/RouteAnnouncer";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -86,9 +86,12 @@ export default function RootLayout({ children }) {
         >
           Skip to Main Content
         </a>
-          {/* Cursor glow removed per UX preference */}
-          
+
         <AllProviders>
+          {/* Note: Ensure these providers (ThemeProvider, AuthProvider, etc.) 
+              are actually imported and exported correctly in AllProviders 
+              or placed here individually if AllProviders doesn't cover them. */}
+          
           <ScrollProgress />
           <NextTopLoader
             color="#4f46e5"
@@ -101,6 +104,7 @@ export default function RootLayout({ children }) {
             speed={200}
             shadow="0 0 10px #4f46e5,0 0 5px #4f46e5"
           />
+          
           <Suspense fallback={null}>
             <main id="main-content" className="outline-none" tabIndex="-1">
               <ErrorBoundary>
@@ -109,26 +113,13 @@ export default function RootLayout({ children }) {
             </main>
 
             <ScrollToTop />
-
             <Footer />
             <ClientLayout />
             <BackToTop />
             <RouteAnnouncer />
+            <OfflineIndicator />
 
-                  <Toaster
-                    position="top-right"
-                    toastOptions={{
-                      duration: 4000,
-                      style: { fontWeight: 600 },
-                    }}
-                  />
-                  <OfflineIndicator />
-                  <CommandPaletteWrapper />
-                </Suspense>
-              </NotificationProvider>
-            </FirestoreProvider>
-          </AuthProvider>
-        </ThemeProvider>
+            {/* Single Toaster configuration */}
             <Toaster
               position="bottom-right"
               toastOptions={{
@@ -153,7 +144,8 @@ export default function RootLayout({ children }) {
                 },
               }}
             />
-            <OfflineIndicator />
+            
+            <CommandPalette />
           </Suspense>
         </AllProviders>
       </body>
