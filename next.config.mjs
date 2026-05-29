@@ -23,7 +23,13 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/attendance/:path*',
+        headers: [
+          { key: 'Permissions-Policy', value: "camera=(self), microphone=(), geolocation=()" },
+        ],
+      },
+      {
+        source: '/((?!attendance).*)',
         headers: [
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Content-Security-Policy', value: "frame-ancestors 'none';" },

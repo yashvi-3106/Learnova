@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   BookOpen, ArrowUpRight, Github, Twitter, 
@@ -48,7 +48,12 @@ function SocialIcon({ href, icon: Icon, label, glowColor = "purple" }) {
 const itemVariants = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState(2026);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
   const [hoveredBrandLetter, setHoveredBrandLetter] = useState(null);
 
   const quickLinks = [

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 
@@ -55,6 +55,156 @@ const AttendanceCalendar = dynamic(
   }
 );
 
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+const ATTENDANCE_WINDOW_START_HOUR = 9;
+const ATTENDANCE_WINDOW_END_MINUTE = 10;
+
+const getUserInitials = (user) => {
+  if (!user?.displayName && !user?.email) {
+    return "U";
+  }
+
+  return (
+    user?.displayName
+      ?.split(" ")
+      .map((name) => name[0])
+      .join("")
+      .toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"
+  );
+};
+
+const getDayName = (dayIndex) => DAY_NAMES[dayIndex] || DAY_NAMES[0];
+
+const isWeekday = (dayIndex) => dayIndex >= 1 && dayIndex <= 5;
+
+const parseClassStartTime = (time = "") => {
+  const [startTime = "00:00"] = String(time).split("-");
+  const [hour = "0", minute = "0"] = startTime.split(":");
+
+  return {
+    hour: Number(hour),
+    minute: Number(minute),
+  };
+};
+
+const getUpcomingClass = (classes, now) => {
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  return (
+    classes.find((cls) => {
+      const startTime = parseClassStartTime(cls?.time);
+      const classStartMinutes = startTime.hour * 60 + startTime.minute;
+
+      return classStartMinutes > currentMinutes;
+    }) || null
+  );
+};
+
+const getTodaySchedule = (now, schedule = weeklySchedule) => {
+  const dayIndex = now.getDay();
+  const dayName = getDayName(dayIndex);
+  const classes = schedule[dayName] || [];
+
+  return {
+    dayName,
+    classes,
+    upcomingClass: getUpcomingClass(classes, now),
+    isAttendanceWindow:
+      isWeekday(dayIndex) &&
+      now.getHours() === ATTENDANCE_WINDOW_START_HOUR &&
+      now.getMinutes() <= ATTENDANCE_WINDOW_END_MINUTE,
+  };
+};
+
+const getScheduleTickKey = (now) =>
+  `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+
+const DashboardError = ({ error, onRetry }) => (
+  <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="text-center max-w-sm">
+      <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <AlertTriangle className="w-8 h-8 text-red-400" />
+      </div>
+
+      <h2 className="text-xl font-bold mb-2">Error Loading Dashboard</h2>
+
+      <p className="text-muted-foreground text-sm mb-6">{error}</p>
+
+      <button
+        onClick={onRetry}
+        className="w-full bg-gradient-to-r from-green-500 to-blue-500 py-3 rounded-xl font-bold text-white"
+      >
+        <RefreshCw className="w-4 h-4 mr-2 inline" />
+        Retry
+      </button>
+    </div>
+  </div>
+);
+
+const DashboardHeader = ({ user, currentTime, getInitials }) => (
+  <div className="bg-card/40 backdrop-blur-xl rounded-2xl border border-border p-4 sm:p-6 shadow-xl">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex items-center gap-4">
+        <div className="relative flex-shrink-0">
+          {user?.photoURL ? (
+            <Image
+              src={user.photoURL}
+              alt="Profile"
+              width={48}
+              height={48}
+              className="w-12 h-12 rounded-xl object-cover border border-accent/30"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
+              <span className="text-sm font-bold text-white">{getInitials(user)}</span>
+            </div>
+          )}
+
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-background" />
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg sm:text-2xl font-bold">
+              {user?.displayName || user?.email?.split("@")[0] || "Student"}
+            </h1>
+
+            <StreakTracker />
+          </div>
+
+          <div className="text-sm text-muted-foreground">{user?.email || "No email"}</div>
+        </div>
+      </div>
+
+      <div className="text-left md:text-right">
+        <div className="text-lg sm:text-xl font-mono">
+          {currentTime?.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {currentTime?.toLocaleDateString([], {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const StudentDashboard = () => {
   const { user } = useAuth();
 
@@ -63,15 +213,12 @@ const StudentDashboard = () => {
 
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [scheduleTime, setScheduleTime] = useState(new Date());
   const [error, setError] = useState(null);
-
-  const [todayClasses, setTodayClasses] = useState([]);
-
-  const [upcomingClass, setUpcomingClass] = useState(null);
-  const [isAttendanceWindow, setIsAttendanceWindow] = useState(false);
 
   const [viewMode, setViewMode] = useState("heatmap");
   const [showComplaint, setShowComplaint] = useState(false);
+  const lastScheduleTickRef = useRef(getScheduleTickKey(new Date()));
 
   const attendanceStats = useMemo(() => {
     const counts = recentActivity.reduce(
@@ -121,80 +268,32 @@ const StudentDashboard = () => {
     };
   }, [attendanceStats, gamificationData]);
 
+  const scheduleState = useMemo(
+    () => getTodaySchedule(scheduleTime, weeklySchedule),
+    [scheduleTime]
+  );
+
+  const todayClasses = scheduleState.classes;
+  const upcomingClass = scheduleState.upcomingClass;
+  const isAttendanceWindow = scheduleState.isAttendanceWindow;
+
   useEffect(() => {
     const loadingTimer = setTimeout(() => {
       setLoading(false);
     }, 1500);
 
-    const updateDashboard = async () => {
-      try {
-        const now = new Date();
+    const updateDashboard = () => {
+      const now = new Date();
 
-        setCurrentTime(now);
+      setCurrentTime(now);
 
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-        const day = now.getDay();
-
-        const isWeekday =
-          day >= 1 && day <= 5;
-
-        const isAttendanceTime =
-          hour === 9 && minute <= 10;
-
-        const newAttendanceState =
-          isWeekday && isAttendanceTime;
-
-        setIsAttendanceWindow(
-          (prev) =>
-            prev !== newAttendanceState
-              ? newAttendanceState
-              : prev
-        );
-
-        const dayNames = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
-
-        const today = dayNames[day];
-
-        const classes =
-          weeklySchedule[today] || [];
-
-        setTodayClasses(classes);
-
-        const upcoming = classes.find(
-          (cls) => {
-            const [startTime] =
-              cls.time.split("-");
-
-            const [classHour, classMinute] =
-              startTime
-                .split(":")
-                .map(Number);
-
-            return (
-              hour < classHour ||
-              (hour === classHour &&
-                minute < classMinute)
-            );
-          }
-        );
-
-        setUpcomingClass(upcoming || null);
-
-        setError(null);
-      } catch (err) {
-        setError(
-          "Failed to load dashboard data. Please try again."
-        );
+      const scheduleTickKey = getScheduleTickKey(now);
+      if (lastScheduleTickRef.current !== scheduleTickKey) {
+        lastScheduleTickRef.current = scheduleTickKey;
+        setScheduleTime(now);
       }
+
+      setError(null);
     };
 
     updateDashboard();
@@ -210,54 +309,12 @@ const StudentDashboard = () => {
     };
   }, []);
 
-  const getUserInitials = () => {
-    if (!user?.displayName && !user?.email) {
-      return "U";
-    }
-
-    return (
-      user?.displayName
-        ?.split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase() ||
-      user?.email?.[0]?.toUpperCase() ||
-      "U"
-    );
-  };
-
   if (loading) {
     return <DashboardSkeleton />;
   }
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center max-w-sm">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-8 h-8 text-red-400" />
-          </div>
-
-          <h2 className="text-xl font-bold mb-2">
-            Error Loading Dashboard
-          </h2>
-
-          <p className="text-muted-foreground text-sm mb-6">
-            {error}
-          </p>
-
-          <button
-            onClick={() =>
-              window.location.reload()
-            }
-            className="w-full bg-gradient-to-r from-green-500 to-blue-500 py-3 rounded-xl font-bold text-white"
-          >
-            <RefreshCw className="w-4 h-4 mr-2 inline" />
-            Retry
-          </button>
-        </div>
-      </div>
-    );
+    return <DashboardError error={error} onRetry={() => window.location.reload()} />;
   }
 
   return (
@@ -265,70 +322,11 @@ const StudentDashboard = () => {
       <Navbar />
 
       <div className="relative z-10 max-w-7xl mx-auto pt-20 pb-12 px-4 sm:px-6 space-y-6">
-
-        {/* Header */}
-        <div className="bg-card/40 backdrop-blur-xl rounded-2xl border border-border p-4 sm:p-6 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-
-            <div className="flex items-center gap-4">
-
-              <div className="relative flex-shrink-0">
-
-                {user?.photoURL ? (
-                  <Image
-                    src={user.photoURL}
-                    alt="Profile"
-                    width={48}
-                    height={48}
-                    className="w-12 h-12 rounded-xl object-cover border border-accent/30"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
-                    <span className="text-sm font-bold text-white">
-                      {getUserInitials()}
-                    </span>
-                  </div>
-                )}
-
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-background" />
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-2xl font-bold">
-                    {user?.displayName ||
-                      user?.email?.split("@")[0] ||
-                      "Student"}
-                  </h1>
-
-                  <StreakTracker />
-                </div>
-
-                <div className="text-sm text-muted-foreground">
-                  {user?.email || "No email"}
-                </div>
-              </div>
-            </div>
-
-            <div className="text-left md:text-right">
-              <div className="text-lg sm:text-xl font-mono">
-                {currentTime?.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-
-              <div className="text-xs text-muted-foreground">
-                {currentTime?.toLocaleDateString([], {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <DashboardHeader
+          user={user}
+          currentTime={currentTime}
+          getInitials={getUserInitials}
+        />
 
         {/* Remaining UI same structure */}
 
@@ -337,11 +335,7 @@ const StudentDashboard = () => {
   );
 };
 
-const StatCard = ({
-  color,
-  label,
-  value,
-}) => {
+const StatCard = ({ color, label, value }) => {
   const styles = {
     green:
       "from-green-500/20 to-green-600/20 border-green-500/30 text-green-400",

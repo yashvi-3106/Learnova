@@ -1158,6 +1158,7 @@ const SuperAdminDashboard = () => {
                 <button
                   onClick={() => setSelectedRecordPayload(null)}
                   className="text-gray-400 hover:text-white transition-colors"
+                  aria-label="Close payload details"
                 >
                   ✕
                 </button>
@@ -1215,7 +1216,10 @@ const SuperAdminDashboard = () => {
                 {new Date().toLocaleDateString()}
               </div>
             </div>
-            <button className="relative p-2.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-xl border border-gray-600/40 transition-colors shadow-sm">
+            <button
+              aria-label="View critical alerts"
+              className="relative p-2.5 bg-gray-800/60 hover:bg-gray-700/60 rounded-xl border border-gray-600/40 transition-colors shadow-sm"
+            >
               <AlertTriangle className="w-5 h-5 text-gray-300" />
               {criticalAlerts.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center shadow-md">

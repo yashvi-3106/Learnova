@@ -5,6 +5,15 @@ import Link from "next/link";
 import { Clock, Star, ArrowRight, BookOpen, Search, RotateCcw, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import Badge from "@/components/ui/Badge";
+
+const getDifficultyVariant = (difficulty) => {
+  const diff = difficulty?.toLowerCase();
+  if (diff === "beginner") return "success";
+  if (diff === "intermediate") return "warning";
+  if (diff === "advanced") return "danger";
+  return "indigo";
+};
 
 /**
  * CourseLibrary Component
@@ -86,7 +95,7 @@ export default function CourseLibrary({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
-                    className="group bg-white/5 border border-white/10 hover:border-indigo-500/40 rounded-2xl p-5 space-y-4 flex flex-col justify-between backdrop-blur-md hover:shadow-indigo-500/5 hover:shadow-2xl hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+                    className="group bg-white/5 border border-white/10 hover:border-indigo-500/40 rounded-2xl p-5 space-y-4 flex flex-col justify-between backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-2xl relative overflow-hidden"
                   >
                     {/* Decorative glowing card accent */}
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-colors duration-300" />
@@ -105,9 +114,12 @@ export default function CourseLibrary({
 
                       {/* Metadata chips */}
                       <div className="flex items-center gap-3 pt-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-md border border-indigo-500/20">
+                        <Badge
+                          variant={getDifficultyVariant(course.difficulty)}
+                          className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1"
+                        >
                           {course.difficulty}
-                        </span>
+                        </Badge>
                         <span className="inline-flex items-center gap-1 text-xs text-slate-400 font-semibold">
                           <Clock className="w-3.5 h-3.5 text-slate-500" />
                           {course.duration.split(" • ")[0]}
