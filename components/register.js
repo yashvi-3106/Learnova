@@ -77,8 +77,9 @@ export default function RegisterPage() {
         } else {
           URL.revokeObjectURL(url);
         }
-      } catch {
-        // silently fail
+      } catch (err) {
+        console.error("Face registration failed:", err);
+        toast.error("Face registration failed. Please try again or use email signup.");
       }
     };
 
