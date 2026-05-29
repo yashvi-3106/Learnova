@@ -26,16 +26,12 @@ import {
   Save,
   X,
   Camera,
-  Star,
   Award,
   Clock,
   Activity,
   BookOpen,
   Sparkles,
   Shield,
-  Crown,
-  Zap,
-  TrendingUp,
   User2,
   GraduationCap,
   Users,
@@ -884,7 +880,7 @@ export default function UniversalProfile() {
               <div>
                 <h3 className="text-2xl font-bold mb-6">Detailed Activity</h3>
                 <div className="relative border-l border-white/10 ml-4 space-y-8 pb-4">
-                  {recentActivity.map((item, index) => (
+                  {recentActivity.map((item) => (
                     <div key={item.id} className="relative pl-8">
                       <div className="absolute -left-3 top-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-4 border-gray-900">
                         <Activity className="w-3 h-3 text-white" />
