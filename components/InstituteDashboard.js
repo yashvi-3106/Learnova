@@ -896,6 +896,28 @@ const InstituteDashboard = () => {
                 className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
               />
             </div>
+            <div className="flex items-center justify-between py-3 border-t border-gray-700">
+              <span className="text-sm font-medium text-muted-foreground dark:text-gray-300">
+                Enable Automated Warnings
+              </span>
+              <input
+                type="checkbox"
+                defaultChecked
+                className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+              />
+            </div>
+            <div className="flex items-center justify-between py-3 border-t border-gray-700">
+              <span className="text-sm font-medium text-muted-foreground dark:text-gray-300">
+                Low Attendance Threshold (%)
+              </span>
+              <input
+                type="number"
+                defaultValue={75}
+                min={0}
+                max={100}
+                className="w-20 px-2 py-1 bg-card/40 dark:bg-black/40 border border-white/20 rounded-lg text-foreground dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+              />
+            </div>
           </div>
         </div>
 

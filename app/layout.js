@@ -365,7 +365,7 @@ export default function RootLayout({ children }) {
               }}
             />
 
-            <CommandPalette />
+            <CommandPaletteWrapper />
           </Suspense>
         </AllProviders>
 
