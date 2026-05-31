@@ -32,12 +32,8 @@ import CommandPaletteWrapper from "@/components/CommandPaletteWrapper";
 import AllProviders from "./providers/AllProviders";
 
 // ─── SEO metadata & structured data ─────────────────────────────────────────
-export { metadata } from "@/lib/seo/siteMetadata";
 import { siteStructuredData } from "@/lib/seo/siteStructuredData";
-import NextTopLoader from "nextjs-toploader";
 import CommandPalette from "../components/CommandPalette";
-import RouteAnnouncer from "@/components/RouteAnnouncer";
-import ErrorBoundary from "@/components/ErrorBoundary";
 
 // ─── Environment validation (server-side only, runs once at startup) ─────────
 // Kept outside the component so it runs at module load time, not per-render.
@@ -369,7 +365,7 @@ export default function RootLayout({ children }) {
               }}
             />
 
-            <CommandPalette />
+            <CommandPaletteWrapper />
           </Suspense>
         </AllProviders>
 
