@@ -26,8 +26,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useCurriculum } from "@/hooks/useCurriculum";
 
-import AchievementSection from "./AchievementSection";
-import AttendanceChart from "./AttendanceChart";
+const AchievementSection = dynamic(
+  () => import("./AchievementSection"),
+  {
+    ssr: false,
+    loading: () => <DashboardSkeleton />,
+  }
+);
+
+const AttendanceChart = dynamic(
+  () => import("./AttendanceChart"),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+  }
+);
 
 import { weeklySchedule } from "@/constants/mockData";
 
