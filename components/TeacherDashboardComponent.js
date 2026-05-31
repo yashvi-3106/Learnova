@@ -68,6 +68,7 @@ import ChartSkeleton from "@/components/ui/ChartSkeleton";
 import DashboardSkeleton from "@/components/ui/DashboardSkeleton";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import AttendanceAnalytics from "@/components/dashboard/AttendanceAnalytics";
+import AttendanceRiskDashboard from "@/components/dashboard/AttendanceRiskDashboard";
 import { AttendancePasscodeModal } from "./dashboard/AttendancePasscodeModal";
 import { ExceptionRequestsList } from "./dashboard/ExceptionRequestsList";
 import { useAttendance } from "@/hooks/useAttendance";
@@ -991,6 +992,10 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-1 gap-8 mt-8">
         <div className="bg-card/40 dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-border dark:border-white/10 p-6">
           <AttendanceAnalytics userId={user?.uid} />
+        </div>
+        {/* feat: AI-powered attendance risk dashboard (issue #2183) */}
+        <div className="bg-card/40 dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-border dark:border-white/10 p-6">
+          <AttendanceRiskDashboard />
         </div>
       </div>
     </div>
