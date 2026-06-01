@@ -112,9 +112,9 @@ function cleanupRateLimitMap() {
   const now = Date.now();
   if (now - lastCleanupTime < 5 * 60 * 1000) return;
   lastCleanupTime = now;
-  for (const [key, entry] of rateLimitMap.entries()) {
+  for (const [key, entry] of devRateLimitMap.entries()) {
     if (now > entry.resetTime) {
-      rateLimitMap.delete(key);
+      devRateLimitMap.delete(key);
     }
   }
 }
@@ -139,7 +139,8 @@ function buildPageCsp() {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.public.blob.vercel-storage.com https://github.com https://www.google-analytics.com",
-    "connect-src 'self' blob: https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebase.io https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google-analytics.com https://region1.google-analytics.com https://*.public.blob.vercel-storage.com https://api.emailjs.com",
+    "connect-src 'self' blob: https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebase.io https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google-analytics.com https://region1.google-analytics.com https://*.public.blob.vercel-storage.com https://api.emailjs.com https://huggingface.co \
+https://cdn-lfs.huggingface.co https://cas-bridge.xethub.hf.co https://*.hf.co https://hf.co https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm" ,
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
     `frame-src ${Array.from(new Set(frameSrc)).join(" ")}`,
@@ -389,7 +390,12 @@ export async function middleware(request) {
   );
 
   // General API route protection (non-dashboard routes under /api/)
-  if (pathname.startsWith("/api/") && pathname !== "/api/check-groq-config") {
+  if (
+  pathname.startsWith("/api/") &&
+  pathname !== "/api/check-groq-config" &&
+  pathname !== "/api/groq" &&
+  !pathname.startsWith("/api/StudyAI")
+) {
     if (!matchedDashboard) {
       if (!isTokenValid) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -10,10 +10,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const POST = withErrorHandler(async (request) => {
-  const decodedToken = await authenticateRequest(request);
+  // const decodedToken = await authenticateRequest(request);
+  
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 
-  const rateLimitResult = await checkRateLimit(`groq_${ip}_${decodedToken.uid}`);
+  const rateLimitResult = await checkRateLimit(
+  `groq_${ip}`
+);
   if (!rateLimitResult.allowed) {
     return jsonError("Too many requests. Please try again later.", 429);
   }
@@ -23,10 +26,14 @@ export const POST = withErrorHandler(async (request) => {
   // Validate body using the library validator
   const validation = validateGroqBody(body);
   const { trimmedMessage, messages } = validation;
-
+  
   const injectionCheck = detectInjection(trimmedMessage);
+  console.log("Injection Check:", injectionCheck);
+console.log("Prompt:", trimmedMessage);
   if (injectionCheck.isInjection) {
-    logger.warn(`[nova-ai-safety] Injection blocked for user ${decodedToken.uid}: ${injectionCheck.matchedPattern}`);
+    logger.warn(
+  `[nova-ai-safety] Injection blocked: ${injectionCheck.matchedPattern}`
+);
     return jsonError("Safety check: System instructions override or prompt injection attempt detected.", 400);
   }
 
@@ -34,7 +41,21 @@ export const POST = withErrorHandler(async (request) => {
 
   try {
     logger.info(`[nova-ai] Making request to Groq API: ${GROQ_API_URL}`);
-    const content = await callGroq(sanitizedMessage);
+    try {
+  console.log("BODY RECEIVED:", body);
+  console.log("MESSAGE TYPE:", typeof trimmedMessage);
+  console.log("MESSAGE LENGTH:", trimmedMessage?.length);
+
+  const content = await callGroq(sanitizedMessage);
+
+  return jsonSuccess({
+    message: content,
+  });
+} catch (error) {
+  console.error("GROQ ERROR:", error);
+
+  throw error;
+}
     return jsonSuccess({ message: content });
   } catch (error) {
     logger.error(`[nova-ai] Groq API error: ${error.message}`);
