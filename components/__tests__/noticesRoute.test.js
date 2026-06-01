@@ -193,7 +193,7 @@ describe("Notice Board Isolation & Security Tests", () => {
     test("rejects standard students from creating notices", async () => {
       verifyFirebaseToken.mockResolvedValue({
         valid: true,
-        decodedToken: { uid: "student-123", email: "student@domain.com" },
+        decodedToken: { uid: "student-123", email: "student@domain.com", email_verified: true, role: "student" },
       });
       getUserProfile.mockResolvedValue({
         role: "student",
@@ -222,10 +222,7 @@ describe("Notice Board Isolation & Security Tests", () => {
     test("filters initial MongoDB query by user instituteId", async () => {
       verifyFirebaseToken.mockResolvedValue({
         valid: true,
-        decodedToken: {
-          uid: "student-123",
-          email: "student@domain.com",
-        },
+        decodedToken: { uid: "student-123", email: "student@domain.com", email_verified: true },
       });
       getUserProfile.mockResolvedValue({
         role: "student",
