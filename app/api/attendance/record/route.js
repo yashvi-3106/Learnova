@@ -51,6 +51,7 @@ export const POST = withErrorHandler(async (request) => {
   initFirebaseAdmin();
   const db = getFirestore();
 
+
   // Authoritatively fetch target student profile or use caller profile
   const targetUid = userId || decodedToken.uid;
   const userProfile = await getUserProfile(targetUid);

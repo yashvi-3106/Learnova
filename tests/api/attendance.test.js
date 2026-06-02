@@ -40,6 +40,17 @@ vi.mock('@/lib/rateLimit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true })),
 }));
 
+vi.mock('@/lib/mongodb', () => ({
+  connectDb: vi.fn(() => ({
+    collection: vi.fn(() => ({
+      insertOne: vi.fn(),
+      updateOne: vi.fn(),
+      deleteOne: vi.fn(),
+      findOne: vi.fn(),
+    })),
+  })),
+}));
+
 vi.mock('@/lib/errors', () => {
   class AppError extends Error {
     constructor(message, statusCode = 500) {
@@ -75,6 +86,7 @@ vi.mock('@/lib/mongodb', () => ({
 }));
 
 // Mock rbac requireAuth to delegate to authenticateRequest mock
+// Mock rbac requireAuth as a spy
 vi.mock('@/lib/rbac', () => ({
   requireAuth: vi.fn(),
 }));
