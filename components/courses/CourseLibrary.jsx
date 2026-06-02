@@ -244,7 +244,7 @@ export default function CourseLibrary({
                       </h3>
 
                       {/* Course Description */}
-                      <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-sm text-slate-400 line-clamp-2 text-ellipsis overflow-hidden leading-relaxed">
                         {course.description}
                       </p>
                     </div>
