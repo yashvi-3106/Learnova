@@ -217,7 +217,9 @@ export default function Timetable({ role = "student" }) {
       if (permission === "granted") {
         if ("serviceWorker" in navigator) {
           navigator.serviceWorker.register("/sw.js")
-            .then((reg) => {})
+            .then((reg) => {
+              console.log("Service Worker registered successfully with scope:", reg.scope);
+            })
             .catch((err) => console.error("SW Registration failed:", err));
         }
       }
