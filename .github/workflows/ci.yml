@@ -38,13 +38,35 @@ jobs:
       - name: 🎨 Run Prettier Code Formatting Check
         run: npm run format:check
 
+      - name: 🔧 Fix native bindings for Linux CI
+        run: |
+          fix_native() {
+            local pkg="$1" dir="$2"
+            mkdir -p "$dir"
+            TAR=$(npm pack "$pkg" 2>/dev/null) || return 0
+            tar -xzf "$TAR" -C "$dir" --strip-components=1
+            rm -f "$TAR"
+          }
+
+          # Rollup
+          RV=$(node -p "require('./node_modules/rollup/package.json').version")
+          fix_native "@rollup/rollup-linux-x64-gnu@$RV" node_modules/@rollup/rollup-linux-x64-gnu
+
+          # Parcel Watcher
+          PV=$(node -p "require('./node_modules/@parcel/watcher/package.json').version")
+          fix_native "@parcel/watcher-linux-x64-glibc@$PV" node_modules/@parcel/watcher-linux-x64-glibc
+
+          # Lightning CSS (needed by next/font)
+          LV=$(node -p "require('./node_modules/lightningcss/package.json').version")
+          fix_native "lightningcss-linux-x64-gnu@$LV" node_modules/lightningcss-linux-x64-gnu
+          cp node_modules/lightningcss-linux-x64-gnu/*.node node_modules/lightningcss/ 2>/dev/null || true
+
+          # Tailwind CSS Oxide
+          OV=$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")
+          fix_native "@tailwindcss/oxide-linux-x64-gnu@$OV" node_modules/@tailwindcss/oxide-linux-x64-gnu
+
       - name: 🧪 Run unit tests
         run: npm test
-
-      - name: 🔧 Fix Tailwind CSS native binding
-        run: |
-          OXIDE_VER=$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")
-          npm install --no-save "@tailwindcss/oxide-linux-x64-gnu@${OXIDE_VER}"
 
       - name: ⚡ Cache Next.js build
         uses: actions/cache@v4

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireRole } from "@/lib/rbac";
 import { withErrorHandler, parseJSON } from "@/lib/error-handler";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // Valid roles in Learnova — used to validate targetAudience entries
-const VALID_ROLES = ["student", "teacher", "institute", "admin", "staff"] as const;
+const VALID_ROLES = ["student", "teacher", "institute", "admin", "staff"];
 
 const noticeSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -66,7 +67,11 @@ async function publishNotice(request) {
     throw new AppError("Too many attempts. Please try again later.", 429);
   }
 
-  const validationResult = await validateRequest(request, createNoticeSchema, 1024 * 50);
+  const validationResult = await validateRequest(
+    request,
+    createNoticeSchema,
+    1024 * 50
+  );
   if (!validationResult.success) {
     return validationResult.response;
   }
@@ -96,6 +101,13 @@ async function publishNotice(request) {
     });
   } catch (mongoError) {
     console.error("Failed to sync notice to MongoDB:", mongoError);
+  }
+
+  // Publish to Redis for SSE real-time stream
+  try {
+    await publishNoticeToRedis({ ...newNotice, _id: result.id });
+  } catch (redisError) {
+    console.error("Failed to publish notice to Redis:", redisError);
   }
 
   return NextResponse.json({
