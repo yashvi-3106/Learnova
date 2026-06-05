@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import admin from "firebase-admin";
 import { authorizeCronRequest } from "@/lib/cronAuth";
 import { connectDb } from "@/lib/mongodb";
-import { initializeFirebase } from "@/lib/firebase-admin";
 import { evaluateStudentAttendance } from "@/lib/attendanceUtils";
 
 export const dynamic = "force-dynamic";
+
+const STUDENT_BATCH_SIZE = 50;
+const FLUSH_THRESHOLD = 500;
 
 function getStudentUid(student) {
   return student?.uid || student?.firebaseUid;
@@ -52,7 +53,9 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
       createdAt: { $gte: cooldownDate },
     });
     const projectedCursor =
-      typeof cursor.project === "function" ? cursor.project({ userId: 1 }) : cursor;
+      typeof cursor.project === "function"
+        ? cursor.project({ userId: 1 })
+        : cursor;
     const recentLogs =
       typeof projectedCursor.toArray === "function"
         ? await projectedCursor.toArray()
@@ -81,53 +84,6 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
   return new Set(checks.filter(Boolean));
 }
 
-async function loadMongoAttendanceByUser(db, instituteId, studentIds) {
-  if (!instituteId || studentIds.length === 0) {
-    return null;
-  }
-
-  const attendanceCollection = db.collection("attendance");
-  if (typeof attendanceCollection.find !== "function") {
-    return null;
-  }
-
-  const records = await attendanceCollection
-    .find({
-      userId: { $in: studentIds },
-      instituteId,
-    })
-    .toArray();
-
-  const attendanceByUser = new Map(studentIds.map((uid) => [uid, []]));
-  for (const record of records) {
-    if (!attendanceByUser.has(record.userId)) {
-      attendanceByUser.set(record.userId, []);
-    }
-    attendanceByUser.get(record.userId).push(record);
-  }
-
-  return attendanceByUser;
-}
-
-async function loadFirestoreAttendanceByUser(firestore, studentIds) {
-  const attendanceByUser = new Map();
-
-  await Promise.all(
-    studentIds.map(async (uid) => {
-      const snapshot = await firestore
-        .collection("attendance_records")
-        .where("userId", "==", uid)
-        .get();
-
-      attendanceByUser.set(
-        uid,
-        snapshot.docs.map((doc) => doc.data())
-      );
-    })
-  );
-
-  return attendanceByUser;
-}
 
 async function sendWarningEmails(emailsToSend) {
   const hasEmailConfig =
@@ -177,6 +133,17 @@ export async function GET(request) {
     initializeFirebase();
     const firestore = admin.firestore();
 
+    // Ensure the warning_logs collection has a compound index on (userId, createdAt)
+    // so the cooldown query does not trigger a full collection scan
+    try {
+      await db.collection("warning_logs").createIndex(
+        { userId: 1, createdAt: -1 },
+        { background: true }
+      );
+    } catch {
+      // Index may already exist
+    }
+
     const allSettings = await db
       .collection("settings")
       .find({
@@ -194,15 +161,27 @@ export async function GET(request) {
     const now = new Date();
     const cooldownDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const notificationsToInsert = [];
-    const warningLogsToInsert = [];
+    let notificationsToInsert = [];
+    let warningLogsToInsert = [];
     const emailsToSend = [];
+    let totalWarnings = 0;
+
+    async function flushNotifications() {
+      if (notificationsToInsert.length === 0) return;
+      await db.collection("notifications").insertMany(notificationsToInsert);
+      await db.collection("warning_logs").insertMany(warningLogsToInsert);
+      notificationsToInsert = [];
+      warningLogsToInsert = [];
+    }
 
     // Fetch all students with an instituteId once
-    const allStudents = await db.collection('users').find({
-      role: 'student',
-      instituteId: { $exists: true }
-    }).toArray();
+    const allStudents = await db
+      .collection("users")
+      .find({
+        role: "student",
+        instituteId: { $exists: true },
+      })
+      .toArray();
 
     // Group students by instituteId
     const studentsByInstitute = new Map();
@@ -216,59 +195,90 @@ export async function GET(request) {
     }
 
     // Collect all student UIDs for batch cooldown check
-    const allStudentUids = allStudents.map(s => s.firebaseUid).filter(Boolean);
-    const recentWarningUserIds = await getRecentWarningUserIds(db, allStudentUids, cooldownDate);
+    const allStudentUids = allStudents
+      .map((s) => s.firebaseUid)
+      .filter(Boolean);
+    const recentWarningUserIds = await getRecentWarningUserIds(
+      db,
+      allStudentUids,
+      cooldownDate
+    );
 
     for (const settings of allSettings) {
       const threshold = settings.institute.lowAttendanceThreshold || 75;
-      const instituteId = settings.instituteId || settings._id?.toString() || settings.userId;
-      if (!instituteId) continue;
 
-      const instituteStudents = studentsByInstitute.get(instituteId) || [];
+      // Derive the institute ID from the settings document. instituteId is the
+      // canonical field; fall back to _id only when instituteId is absent.
+      // Reject any document whose instituteId cannot be determined as a
+      // non-empty string: processing it with an undefined or empty key would
+      // cause studentsByInstitute.get() to return undefined, silently matching
+      // no students or incorrectly matching students from another institute if
+      // two settings documents resolve to the same fallback key.
+      const rawInstituteId = settings.instituteId;
+      if (
+        !rawInstituteId ||
+        typeof rawInstituteId !== "string" ||
+        rawInstituteId.trim() === ""
+      ) {
+        console.warn(
+          "[attendance-warnings] Skipping settings document with missing or invalid instituteId",
+          { settingsId: settings._id?.toString() }
+        );
+        continue;
+      }
+      const instituteId = rawInstituteId.trim();
+
+      // Fetch students for this institute only instead of loading all students globally
+      const instituteStudents = await db.collection('users').find({
+        role: 'student',
+        instituteId,
+      }).toArray();
 
       if (instituteStudents.length === 0) continue;
 
-      // Load attendance from MongoDB (scoped by institute) for all students in this institute
-      const instituteStudentUids = instituteStudents.map(s => s.firebaseUid).filter(Boolean);
-      const mongoAttendance = await loadMongoAttendanceByUser(db, instituteId, instituteStudentUids);
+      const instituteStudentUids = instituteStudents
+        .map((s) => s.firebaseUid)
+        .filter(Boolean);
 
-      // Build attendanceByUser from mongoAttendance
+      const attendanceRecords = await db
+        .collection("attendance")
+        .find({ userId: { $in: instituteStudentUids }, instituteId })
+        .toArray();
+
       const attendanceByUser = new Map();
-      for (const [uid, records] of mongoAttendance || []) {
-        attendanceByUser.set(uid, records);
+      for (const record of attendanceRecords) {
+        if (!attendanceByUser.has(record.userId)) {
+          attendanceByUser.set(record.userId, []);
+        }
+        attendanceByUser.get(record.userId).push(record);
       }
 
       for (const student of instituteStudents) {
         const studentUid = student.firebaseUid;
         if (!studentUid) continue;
 
-        // Skip if warned recently (batch cooldown check)
         if (recentWarningUserIds.has(studentUid)) {
           continue;
         }
 
-        const uid = student.uid || student.firebaseUid;
-        if (!uid) continue;
-
-        // Use MongoDB attendance data (scoped by institute) instead of Firestore
-        const studentAttendance = attendanceByUser.get(uid) || [];
+        const studentAttendance = attendanceByUser.get(studentUid) || [];
         const evaluation = evaluateStudentAttendance(studentAttendance, threshold);
 
         if (evaluation.isBelowThreshold) {
           const email = student.email;
-          const name = student.name || student.fullName || 'Student';
+          const name = student.name || student.fullName || "Student";
 
           notificationsToInsert.push({
-            userId: uid,
-            title: 'Low Attendance Warning',
+            userId: studentUid,
+            title: "Low Attendance Warning",
             message: `Your current attendance is ${evaluation.percentage}%, which is below the required ${threshold}%. Please improve your attendance.`,
-            type: 'warning',
+            type: "warning",
             read: false,
             createdAt: now,
           });
 
           warningLogsToInsert.push({
-            userId: uid,
+            userId: studentUid,
             percentage: evaluation.percentage,
             threshold,
             createdAt: now,
@@ -282,21 +292,23 @@ export async function GET(request) {
               threshold,
             });
           }
+
+          totalWarnings++;
+        }
+
+        if (notificationsToInsert.length >= FLUSH_THRESHOLD) {
+          await flushNotifications();
         }
       }
     }
 
-    if (notificationsToInsert.length > 0) {
-      await db.collection("notifications").insertMany(notificationsToInsert);
-      await db.collection("warning_logs").insertMany(warningLogsToInsert);
-    }
-
+    await flushNotifications();
     await sendWarningEmails(emailsToSend);
 
     return NextResponse.json({
       success: true,
-      warningsIssued: notificationsToInsert.length,
-      message: `Issued ${notificationsToInsert.length} warnings.`,
+      warningsIssued: totalWarnings,
+      message: `Issued ${totalWarnings} warnings.`,
     });
   } catch (error) {
     console.error("Cron job error:", error);

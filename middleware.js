@@ -3,6 +3,22 @@ import * as jose from "jose";
 import { Redis } from "@upstash/redis";
 import { validateCsrfOriginAndReferer, validateCsrfRequest } from "@/lib/csrf";
 
+let redisClient;
+
+function getRedisClient() {
+  if (
+    !redisClient &&
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+  ) {
+    redisClient = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+  return redisClient;
+}
+
 const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const FIREBASE_AUTH_DOMAIN = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
 const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -13,12 +29,45 @@ const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY;
 // acceptance window for expired or revoked tokens.
 const CLOCK_TOLERANCE_SECONDS = 60;
 
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// Uses Upstash Redis (Vercel KV) as a centralized store so that rate limit
+// state is shared across all serverless/edge instances, preventing bypass
+// attacks. Falls back to per-instance memory only during local development.
+
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 5;
+
+let redisClient;
+
+function getRedis() {
+  if (!redisClient) {
+    redisClient = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+  return redisClient;
+}
+
+// Dev-only in-memory fallback (never used in production)
+const devRateLimitMap = new Map();
+
+const AUTH_RATE_LIMITED_PATHS = [
+  "/api/auth/login",
+  "/api/auth/signup",
+  "/api/auth/logout",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/auth/verify-email",
+  "/api/auth/verify-otp",
+];
+
 const PUBLIC_API_PATHS = [
   "/api/auth/csrf",
   "/api/auth/reset-password",
   "/api/health",
 ];
-
+const PUBLIC_PATHS = ["/activity", "/auth", "/verify"];
 // ─── CSP ──────────────────────────────────────────────────────────────────────
 
 function buildPageCsp() {
@@ -155,7 +204,9 @@ async function verifyIdToken(token) {
       try {
         const headerParts = token.split(".");
         if (headerParts.length >= 1) {
-          let headerPayload = headerParts[0].replace(/-/g, "+").replace(/_/g, "/");
+          let headerPayload = headerParts[0]
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
           while (headerPayload.length % 4) headerPayload += "=";
           const headerJson =
             typeof atob === "function"
@@ -239,11 +290,54 @@ async function verifyIdToken(token) {
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
+  if (PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return NextResponse.next();
+  }
   const isUnsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(request.method);
+
+  // Clean up expired rate limit entries periodically
+  cleanupRateLimitMap();
 
   // NOTE: CSRF validation applies only for cookie-authenticated requests.
   // Requests authenticated via Authorization: Bearer <token> are not CSRF-vulnerable.
   // Defer CSRF validation until after token extraction/verification below.
+
+  if (pathname.startsWith("/api/") && isUnsafeMethod) {
+    const contentLength = Number(request.headers.get("content-length"));
+    if (!Number.isNaN(contentLength) && contentLength > 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Payload too large (limit 1MB)" },
+        { status: 413 }
+      );
+    }
+  }
+
+  // ── 1. Rate limiting for auth API routes ──
+  if (isAuthRoute(pathname)) {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+
+    const { allowed, remaining, retryAfter } = await rateLimit(ip, pathname, request);
+
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Too many attempts. Please try again in ${retryAfter} seconds.`,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfter),
+            "X-RateLimit-Limit": String(RATE_LIMIT_MAX),
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+  }
 
   const requestHeaders = new Headers(request.headers);
 
@@ -269,6 +363,29 @@ export async function middleware(request) {
     }
   }
 
+  if (pathname.startsWith("/api/") && isUnsafeMethod) {
+  if (isTokenValid && pathname.startsWith("/api/")) {
+    const sessionId =
+      request.cookies.get("sessionId")?.value ||
+      request.headers.get("x-session-id");
+    if (sessionId) {
+      try {
+        const redis = getRedisClient();
+        if (redis) {
+          const exists = await redis.exists(`session:${sessionId}`);
+          if (exists !== 1) {
+            return NextResponse.json(
+              { error: "Session expired or terminated concurrently" },
+              { status: 401 }
+            );
+          }
+        }
+      } catch {
+        // Redis unavailable — continue without session validation
+      }
+    }
+  }
+
   const tokenFromCookie = request.cookies.get("authToken")?.value || null;
   if (pathname.startsWith("/api/") && isUnsafeMethod && tokenFromCookie) {
     try {
@@ -283,16 +400,42 @@ export async function middleware(request) {
   }
 
   const protectedDashboards = [
-    { prefix: "/student", apiPrefix: "/api/student", role: "student", defaultPath: "/student/dashboard" },
-    { prefix: "/teacher", apiPrefix: "/api/teacher", role: "teacher", defaultPath: "/teacher/dashboard" },
-    { prefix: "/admin", apiPrefix: "/api/admin", role: "admin", defaultPath: "/admin/dashboard" },
-    { prefix: "/institute", apiPrefix: "/api/institute", role: "institute", defaultPath: "/institute/dashboard" },
-    { prefix: "/parent", apiPrefix: "/api/parent", role: "parent", defaultPath: "/parent/dashboard" },
+    {
+      prefix: "/student",
+      apiPrefix: "/api/student",
+      role: "student",
+      defaultPath: "/student/dashboard",
+    },
+    {
+      prefix: "/teacher",
+      apiPrefix: "/api/teacher",
+      role: "teacher",
+      defaultPath: "/teacher/dashboard",
+    },
+    {
+      prefix: "/admin",
+      apiPrefix: "/api/admin",
+      role: "admin",
+      defaultPath: "/admin/dashboard",
+    },
+    {
+      prefix: "/institute",
+      apiPrefix: "/api/institute",
+      role: "institute",
+      defaultPath: "/institute/dashboard",
+    },
+    {
+      prefix: "/parent",
+      apiPrefix: "/api/parent",
+      role: "parent",
+      defaultPath: "/parent/dashboard",
+    },
   ];
 
-  const matchedDashboard = protectedDashboards.find((dashboard) =>
-    pathname.startsWith(dashboard.prefix) ||
-    (dashboard.apiPrefix && pathname.startsWith(dashboard.apiPrefix))
+  const matchedDashboard = protectedDashboards.find(
+    (dashboard) =>
+      pathname.startsWith(dashboard.prefix) ||
+      (dashboard.apiPrefix && pathname.startsWith(dashboard.apiPrefix))
   );
 
   if (
@@ -305,7 +448,10 @@ export async function middleware(request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       if (!isEmailVerified) {
-        return NextResponse.json({ error: "Forbidden: Email not verified" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Forbidden: Email not verified" },
+          { status: 403 }
+        );
       }
     }
   }
@@ -319,16 +465,26 @@ export async function middleware(request) {
     }
     if (!isEmailVerified) {
       if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "Forbidden: Email not verified" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Forbidden: Email not verified" },
+          { status: 403 }
+        );
       }
       return NextResponse.redirect(new URL("/verify", request.url));
     }
     if (userRole !== matchedDashboard.role) {
       if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "Forbidden: Role mismatch" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Forbidden: Role mismatch" },
+          { status: 403 }
+        );
       }
-      const correctDashboard = protectedDashboards.find((d) => d.role === userRole);
-      const redirectTarget = correctDashboard ? correctDashboard.defaultPath : "/profile";
+      const correctDashboard = protectedDashboards.find(
+        (d) => d.role === userRole
+      );
+      const redirectTarget = correctDashboard
+        ? correctDashboard.defaultPath
+        : "/profile";
       return NextResponse.redirect(new URL(redirectTarget, request.url));
     }
   }
@@ -352,16 +508,24 @@ export async function middleware(request) {
       return NextResponse.redirect(new URL("/auth", request.url));
     }
     if (isEmailVerified) {
-      const correctDashboard = protectedDashboards.find((d) => d.role === userRole);
-      const redirectTarget = correctDashboard ? correctDashboard.defaultPath : "/profile";
+      const correctDashboard = protectedDashboards.find(
+        (d) => d.role === userRole
+      );
+      const redirectTarget = correctDashboard
+        ? correctDashboard.defaultPath
+        : "/profile";
       return NextResponse.redirect(new URL(redirectTarget, request.url));
     }
   }
 
   if (pathname === "/auth" && isTokenValid && isEmailVerified && userRole) {
-    const correctDashboard = protectedDashboards.find((d) => d.role === userRole);
+    const correctDashboard = protectedDashboards.find(
+      (d) => d.role === userRole
+    );
     if (correctDashboard) {
-      return NextResponse.redirect(new URL(correctDashboard.defaultPath, request.url));
+      return NextResponse.redirect(
+        new URL(correctDashboard.defaultPath, request.url)
+      );
     }
   }
 
@@ -377,11 +541,22 @@ export async function middleware(request) {
     response.headers.set("X-Frame-Options", "SAMEORIGIN");
     response.headers.set("X-Content-Type-Options", "nosniff");
     response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    response.headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
+    response.headers.set(
+      "Permissions-Policy",
+      "camera=(self), microphone=(), geolocation=()"
+    );
     response.headers.set("X-XSS-Protection", "1; mode=block");
   }
 
   return response;
+}
+
+// Exported for unit testing (in-memory fallback behavior)
+export { isAuthRoute, rateLimit, cleanupRateLimitMap, devRateLimitMap, resetForTest };
+
+// Test helper to control cleanup timer
+function resetForTest(now) {
+  lastCleanupTime = now;
 }
 
 export const config = {

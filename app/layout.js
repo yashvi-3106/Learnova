@@ -1,4 +1,12 @@
+
+// 1. Enhanced layout.js with proper structured data for sitelinks
+import SyllabusAnalytics from '../components/SyllabusAnalytics';
+import LearningStreakDashboard from '../components/LearningStreakDashboard';
+import { NotificationProvider } from "@/contexts/NotificationContext";
+import { FirestoreProvider } from "@/contexts/FirestoreContext";
+x
 // ─── Next.js core & React ────────────────────────────────────────────────────
+
 import React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
@@ -38,21 +46,18 @@ import AllProviders from "./providers/AllProviders";
 import { siteStructuredData } from "@/lib/seo/siteStructuredData";
 
 // 🎯 FIX: Explicitly loading overlays
-import CommandPaletteWrapper from "@/components/CommandPalette";
+import CommandPaletteWrapper from "@/components/CommandPaletteWrapper";
 import ShortcutsModal from "@/components/ShortcutsModal";
-
 
 // Validate environment variables at startup (server-side only).
 // ─── Environment validation (server-side only, runs once at startup) ─────────
 // Kept outside the component so it runs at module load time, not per-render.
 // throwOnError:false keeps local dev working even without all secrets set.
 
-
 if (typeof window === "undefined") {
   try {
     const { validateEnv } = require("@/lib/env");
     validateEnv({
-
       throwOnError: false,
 
       throwOnError: false, // Avoid failing the build during local/CI evaluation
@@ -158,7 +163,8 @@ export const metadata = {
     images: ["/og-image.jpg"],
   },
   other: {
-    "google-site-verification": process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? "",
+    "google-site-verification":
+      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? "",
   },
 };
 
@@ -169,8 +175,7 @@ const jsonLd = [
     name: "Learnova",
     alternateName: "Learnova Education Platform",
     url: "https://learnova-web.vercel.app",
-    description:
-      "AI-powered student engagement and smart attendance platform",
+    description: "AI-powered student engagement and smart attendance platform",
     inLanguage: "en-US",
     mainEntity: {
       "@type": "Organization",
@@ -296,7 +301,9 @@ export default function RootLayout({ children }) {
         {/* ── JSON-LD structured data for SEO ── */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(siteStructuredData),
+          }}
         />
       </head>
 
@@ -312,10 +319,7 @@ export default function RootLayout({ children }) {
           Skip to Main Content
         </a>
 
-
         {/* ── All context providers (Theme, Auth, Firestore, Notifications) ── */}
-
-          
 
         {/* ── All context providers (Theme, Auth, Firestore, Notifications) ── */}
 
@@ -340,7 +344,6 @@ export default function RootLayout({ children }) {
           />
 
           <Suspense fallback={null}>
-
             {/* ── Main page content with error boundary + page transitions ── */}
             <main id="main-content" className="outline-none" tabIndex="-1">
               <ErrorBoundary>
@@ -370,7 +373,7 @@ export default function RootLayout({ children }) {
             />
 
             <CommandPaletteWrapper />
-            
+
             {/* 🚀 ADDED: System Shortcuts Modal integration layer */}
             <ShortcutsModal />
             <CommandPaletteWrapper />
@@ -379,7 +382,6 @@ export default function RootLayout({ children }) {
             <ShortcutsModal />
           </Suspense>
         </AllProviders>
-
       </body>
     </html>
   );
