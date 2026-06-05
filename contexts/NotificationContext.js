@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useState, useEffect, useRef, useContext } from "react";
+import { createContext, useState, useEffect, useRef, useContext, useCallback } from "react";
 import { rtdb, isMockAuthMode, MOCK_USER } from "@/lib/firebaseConfig";
 import { ref, onValue, off, push, serverTimestamp } from "firebase/database";
 import { AuthContext } from "@/contexts/AuthContext";
@@ -13,7 +13,7 @@ export function NotificationProvider({ children }) {
   // Keep timers so we can clear on unmount
   const timersRef = useRef(new Map());
 
-  const addNotification = (notification) => {
+  const addNotification = useCallback((notification) => {
     const id = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : `notif_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`;
@@ -38,7 +38,7 @@ export function NotificationProvider({ children }) {
     }, 8000);
 
     timersRef.current.set(id, timerId);
-  };
+  }, []);
 
   // Real-time synchronization
   useEffect(() => {
@@ -48,7 +48,7 @@ export function NotificationProvider({ children }) {
         const mockEvents = [
           { message: "New Quiz Result: You scored 95% in Next.js Advanced!", type: "success" },
           { message: "New Assignment: 'React Server Components' is now available.", type: "info" },
-          { message: "Deadline approaching: 'Tailword CSS' assignment due in 2 hours.", type: "warning" },
+          { message: "Deadline approaching: 'Tailwind CSS' assignment due in 2 hours.", type: "warning" },
         ];
         const randomEvent = mockEvents[Math.floor(Math.random() * mockEvents.length)];
         addNotification(randomEvent);
@@ -74,7 +74,7 @@ export function NotificationProvider({ children }) {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid, addNotification]);
 
   const removeNotification = (id) => {
     setNotifications((prev) =>
