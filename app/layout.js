@@ -4,7 +4,7 @@ import SyllabusAnalytics from '../components/SyllabusAnalytics';
 import LearningStreakDashboard from '../components/LearningStreakDashboard';
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { FirestoreProvider } from "@/contexts/FirestoreContext";
-x
+
 // ─── Next.js core & React ────────────────────────────────────────────────────
 
 import React from "react";
@@ -59,12 +59,6 @@ if (typeof window === "undefined") {
     const { validateEnv } = require("@/lib/env");
     validateEnv({
       throwOnError: false,
-
-      throwOnError: false, // Avoid failing the build during local/CI evaluation
-
-      throwOnError: false,
-      throwOnError: false, // Avoid failing the build during local/CI evaluation
-
       warnOnce: true,
     });
   } catch (error) {
@@ -319,10 +313,6 @@ export default function RootLayout({ children }) {
           Skip to Main Content
         </a>
 
-        {/* ── All context providers (Theme, Auth, Firestore, Notifications) ── */}
-
-        {/* ── All context providers (Theme, Auth, Firestore, Notifications) ── */}
-
         <AllProviders>
           {/* Note: Ensure these providers (ThemeProvider, AuthProvider, etc.) 
               are actually imported and exported correctly in AllProviders 
@@ -372,10 +362,6 @@ export default function RootLayout({ children }) {
               }}
             />
 
-            <CommandPaletteWrapper />
-
-            {/* 🚀 ADDED: System Shortcuts Modal integration layer */}
-            <ShortcutsModal />
             <CommandPaletteWrapper />
 
             {/* 🚀 ADDED: System Shortcuts Modal integration layer */}

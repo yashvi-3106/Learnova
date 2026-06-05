@@ -207,13 +207,6 @@ export async function GET(request) {
     for (const settings of allSettings) {
       const threshold = settings.institute.lowAttendanceThreshold || 75;
 
-      // Derive the institute ID from the settings document. instituteId is the
-      // canonical field; fall back to _id only when instituteId is absent.
-      // Reject any document whose instituteId cannot be determined as a
-      // non-empty string: processing it with an undefined or empty key would
-      // cause studentsByInstitute.get() to return undefined, silently matching
-      // no students or incorrectly matching students from another institute if
-      // two settings documents resolve to the same fallback key.
       const rawInstituteId = settings.instituteId;
       if (
         !rawInstituteId ||
