@@ -32,7 +32,6 @@ export default function LazyImage({
         />
       )}
 
-<<<<<<< Updated upstream
       {width && height ? (
         <Image
           src={imageSrc}
@@ -60,19 +59,6 @@ export default function LazyImage({
           {...props}
         />
       )}
-=======
-      <Image
-        src={error ? fallbackSrc : src}
-        alt={alt || "Image"}
-        fill
-        onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
-        className={`object-cover transition-opacity duration-500 ease-in-out ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-        {...props}
-      />
->>>>>>> Stashed changes
     </div>
   );
 }

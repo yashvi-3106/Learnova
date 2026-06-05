@@ -79,11 +79,7 @@ export default function RecentActivityWidget({ maxItems = 8, storageType = "acti
             <div className="group flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-900/50 transition-colors">
               <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center text-indigo-400 text-sm font-bold shrink-0">
                 {it.thumbnail ? (
-<<<<<<< Updated upstream
                   <Image src={it.thumbnail} alt="" width={40} height={40} className="object-cover rounded-md" />
-=======
-                  <Image src={it.thumbnail} alt="" width={40} height={40} className="w-full h-full object-cover rounded-md" />
->>>>>>> Stashed changes
                 ) : PageIcon ? (
                   <PageIcon className="w-4 h-4" />
                 ) : it.type ? (
