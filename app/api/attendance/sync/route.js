@@ -6,8 +6,8 @@ import { withErrorHandler, parseJSON } from "@/lib/error-handler";
 import { getLocalDateKey } from "@/lib/dateUtils";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { AppError } from "@/lib/errors";
-import { awardXp } from "@/lib/gamification-service";
 import { executeSaga } from "@/lib/transactionCoordinator";
+import { enqueue, JOB_TYPES } from "@/lib/queue";
 import { connectDb } from "@/lib/mongodb";
 import { z } from "zod";
 
@@ -247,14 +247,18 @@ async function handleSync(request) {
           name: "award_xp",
           execute: async (ctx) => {
             if (ctx._alreadyProcessed) return;
-            await awardXp(decodedToken.uid, "attendance_marked", {
-              attendanceHour: record.queuedAt
-                ? new Date(record.queuedAt).getHours()
-                : new Date().getHours(),
-              attendanceDate: recordDate,
+            await enqueue(JOB_TYPES.AWARD_GAMIFICATION_XP, {
+              firebaseUid: decodedToken.uid,
+              actionType: "attendance_marked",
+              metadata: {
+                attendanceHour: record.queuedAt
+                  ? new Date(record.queuedAt).getHours()
+                  : new Date().getHours(),
+                attendanceDate: recordDate,
+              },
             });
           },
-          compensate: null, // XP is a side-effect; failure doesn't block attendance
+          compensate: null,
         },
       ],
     });

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { authorizeCronRequest } from "@/lib/cronAuth";
 import { connectDb } from "@/lib/mongodb";
 import { evaluateStudentAttendance } from "@/lib/attendanceUtils";
+import { enqueue, JOB_TYPES } from "@/lib/queue";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -85,42 +87,7 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
 }
 
 
-async function sendWarningEmails(emailsToSend) {
-  const hasEmailConfig =
-    process.env.EMAILJS_SERVICE_ID &&
-    process.env.EMAILJS_TEMPLATE_ID &&
-    process.env.EMAILJS_PUBLIC_KEY;
 
-  if (!hasEmailConfig || emailsToSend.length === 0) {
-    return;
-  }
-
-  const sendEmail = async (emailData) => {
-    try {
-      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: process.env.EMAILJS_SERVICE_ID,
-          template_id: process.env.EMAILJS_TEMPLATE_ID,
-          user_id: process.env.EMAILJS_PUBLIC_KEY,
-          template_params: emailData,
-        }),
-      });
-    } catch (error) {
-      console.error(`Failed to send email to ${emailData.to_email}:`, error);
-    }
-  };
-
-  // Process emails in parallel chunks to prevent serverless function timeouts
-  const CHUNK_SIZE = 50;
-  for (let i = 0; i < emailsToSend.length; i += CHUNK_SIZE) {
-    const chunk = emailsToSend.slice(i, i + CHUNK_SIZE);
-    await Promise.allSettled(chunk.map(sendEmail));
-  }
-}
 
 export async function GET(request) {
   try {
@@ -296,7 +263,24 @@ export async function GET(request) {
       await db.collection("warning_logs").insertMany(warningLogsToInsert);
     }
 
-    await sendWarningEmails(emailsToSend);
+    if (emailsToSend.length > 0) {
+      try {
+        const jobId = await enqueue(JOB_TYPES.SEND_BULK_EMAILS, {
+          emails: emailsToSend,
+        });
+        logger.info("[attendance-warnings] Queued bulk email job", {
+          jobId,
+          emailCount: emailsToSend.length,
+        });
+      } catch (queueErr) {
+        logger.error(
+          "[attendance-warnings] Failed to queue bulk email job",
+          {
+            error: queueErr.message,
+          }
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,
