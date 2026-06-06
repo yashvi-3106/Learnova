@@ -16,6 +16,7 @@ function isUserTyping(target) {
  *   Ctrl/Cmd + /   -> onHelp
  *   Escape         -> onEscape
  */
+// AFTER (fixed)
 export function useKeyboardShortcuts({
   onSearch,
   onHelp,
