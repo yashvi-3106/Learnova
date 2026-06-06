@@ -75,49 +75,6 @@ import AttendanceAnalytics from "@/components/dashboard/AttendanceAnalytics";
 import { db } from "@/lib/firebaseConfig";
 
 import { collection, getDocs, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-const exportToCSV = (data) => {
-  const headers = ["Name", "Roll No", "Status", "Time", "Confidence"];
-  const rows = data.map((s) => [s.name, s.rollNo, s.status, s.time, s.confidence + "%"]);
-  const csvContent = [headers, ...rows].map((r) => r.join(",")).join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `attendance_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-};
-
-const exportToPDF = (data) => {
-  const printWindow = window.open("", "_blank");
-  const rows = data.map((s) => `
-    <tr>
-      <td>${s.name}</td>
-      <td>${s.rollNo}</td>
-      <td>${s.status.toUpperCase()}</td>
-      <td>${s.time}</td>
-      <td>${s.confidence}%</td>
-    </tr>`).join("");
-  printWindow.document.write(`
-    <html><head><title>Attendance Report</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 20px; }
-      h2 { color: #333; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-      th { background: #6d28d9; color: white; }
-      tr:nth-child(even) { background: #f9f9f9; }
-    </style></head>
-    <body>
-      <h2>Attendance Report — ${new Date().toLocaleDateString()}</h2>
-      <table><thead><tr>
-        <th>Name</th><th>Roll No</th><th>Status</th><th>Time</th><th>Confidence</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-    </body></html>`);
-  printWindow.document.close();
-  printWindow.print();
-};
-const TeacherDashboard = () => {
 
 import AttendanceRiskDashboard from "@/components/dashboard/AttendanceRiskDashboard";
 import { AttendancePasscodeModal } from "./dashboard/AttendancePasscodeModal";
@@ -640,44 +597,6 @@ const TeacherDashboard = () => {
     toast.success("Passcode copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
-  const handleExportCSV = () => {
-    if (!studentAttendanceData || studentAttendanceData.length === 0) {
-      toast.error("No attendance records found to export.");
-      return;
-    }
-
-    const headers = ["Student ID", "Student Name", "Date", "Attendance Status"];
-    const todayDate = new Date().toISOString().slice(0, 10);
-
-    const csvRows = studentAttendanceData.map((student) => {
-      const studentId = student.rollNo || student.id || "N/A";
-      const studentName = student.name || "Unknown";
-      const status = student.status || "absent";
-
-      return [
-        `"${studentId}"`,
-        `"${studentName.replace(/"/g, '""')}"`,
-        `"${todayDate}"`,
-        `"${status.toUpperCase()}"`,
-      ].join(",");
-    });
-
-    const csvContent = [headers.join(","), ...csvRows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const fileName = `attendance_report_${todayDate}.csv`;
-
-    const link = document.createElement("a");
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", fileName);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported data successfully to ${fileName}`);
-    }
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -1023,7 +942,7 @@ const TeacherDashboard = () => {
               </button>
 
               <button
-                onClick={handleExportCSV}
+                onClick={() => handleExport('csv')}
                 className="w-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 border border-purple-500/30 text-foreground dark:text-white p-3 rounded-xl transition-colors text-left"
                aria-label="Action button">
                 <div className="flex items-center space-x-3">
@@ -1299,7 +1218,7 @@ const TeacherDashboard = () => {
                   </button>
                 )}
                 <button
-                  onClick={handleExportCSV}
+                  onClick={() => handleExport('csv')}
                   className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2"
                  aria-label="Action button">
                   <Download className="w-3 h-3" />
