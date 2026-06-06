@@ -12,6 +12,10 @@ export default function LazyImage({
 }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  useEffect(() => {
+    setCurrentSrc(src);
+  }, [src]);
 
   useEffect(() => {
     setLoaded(false);
@@ -28,10 +32,14 @@ export default function LazyImage({
       )}
 
       <img
-        src={error ? fallbackSrc : src}
+        src={error ? fallbackSrc : currentSrc}
         alt={alt}
         onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
+        onError={() => {
+          if (currentSrc !== fallbackSrc) {
+            setError(true);
+          }
+        }}
         className={`w-full h-full object-cover transition-opacity duration-500 ease-in-out ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
