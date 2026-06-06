@@ -16,6 +16,13 @@ export default function ComplaintForm({
     priority: "Medium",
     description: "",
   });
+  
+  const MAX_LENGTH = 100;
+  const getCounterColor = (length) => {
+    if (length >= MAX_LENGTH) return "text-red-500 font-semibold";     // error-red
+    if (length >= MAX_LENGTH - 15) return "text-amber-500 font-medium"; // warning-amber
+    return "text-neutral-400";                                         // default subtle
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -107,15 +114,22 @@ export default function ComplaintForm({
             <option>Other</option>
           </select>
 
-          <input
-            required
-            placeholder="Complaint Title"
-            value={form.title}
-            onChange={(e) =>
-              setForm({ ...form, title: e.target.value })
+          {/* DYNAMIC TITLE FIELD WITH CHARACTER COUNTER */}
+          <div className="md:col-span-2 relative flex items-center">
+            <input
+              required
+              placeholder="Complaint Title"
+              value={form.title}
+              maxLength={MAX_LENGTH}
+              onChange={(e) =>
+                setForm({ ...form, title: e.target.value })
             }
-            className="md:col-span-2 px-4 py-3 rounded-2xl border border-border bg-background outline-none"
-          />
+            className="w-full px-4 py-3 pr-20 rounded-2xl border border-border bg-background outline-none"
+         />
+          <span className={`absolute right-4 text-xs select-none ${getCounterColor(form.title.length)}`}>
+            {form.title.length}/{MAX_LENGTH}
+          </span>
+        </div>
 
           <select
             value={form.priority}
