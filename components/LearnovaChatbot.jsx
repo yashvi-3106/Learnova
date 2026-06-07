@@ -641,6 +641,7 @@ export default function LearnovaChatbot() {
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
   const userHasScrolledUp = useRef(false);
+  const chatContainerRef = useRef(null);
 
   useEffect(() => {
     setMessages([
@@ -812,6 +813,39 @@ export default function LearnovaChatbot() {
     ]
   );
 
+  // Focus trap when chat is open
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const focusableSelector = 'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])';
+    const handleTabKey = (e) => {
+      const focusable = container.querySelectorAll(focusableSelector);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    const timeout = setTimeout(() => {
+      const firstFocusable = container.querySelector(focusableSelector);
+      if (firstFocusable) firstFocusable.focus();
+    }, 100);
+
+    document.addEventListener("keydown", handleTabKey);
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener("keydown", handleTabKey);
+    };
+  }, [isOpen, isMinimized]);
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -882,6 +916,9 @@ export default function LearnovaChatbot() {
 
   return (
     <div
+      ref={chatContainerRef}
+      role="dialog"
+      aria-label="Nova AI Chat"
       className={`fixed z-50 flex flex-col ${themeTokens.bg} shadow-2xl transition-all duration-300 border ${themeTokens.border} ${
         isMinimized
           ? "bottom-24 md:bottom-6 right-4 md:right-6 w-72 h-16 overflow-hidden rounded-xl"
@@ -1051,6 +1088,9 @@ export default function LearnovaChatbot() {
             <div
               ref={messagesContainerRef}
               onScroll={handleScrollState}
+              role="log"
+              aria-live="polite"
+              aria-atomic="false"
               className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-none select-text"
             >
               {messages.map((msg) => (
@@ -1117,7 +1157,7 @@ export default function LearnovaChatbot() {
               ))}
 
               {isLoading && (
-                <div className="flex justify-start items-center space-x-2.5 animate-pulse select-none">
+                <div aria-live="polite" aria-atomic="true" className="flex justify-start items-center space-x-2.5 animate-pulse select-none">
                   <div className={`p-2 rounded-xl ${themeTokens.botAvatar}`}>
                     <Bot size={16} />
                   </div>
