@@ -381,7 +381,7 @@ const ParentDashboard = () => {
 
   if (children.length === 0) {
     return (
-
+      <div className="min-h-screen bg-slate-950 text-slate-100">
         <Navbar />
         <div className="max-w-4xl mx-auto pt-32 px-6 text-center space-y-6">
           <div className="w-20 h-20 bg-pink-500/10 border border-pink-500/20 rounded-full flex items-center justify-center mx-auto text-pink-400">
@@ -423,7 +423,7 @@ const ParentDashboard = () => {
   };
 
   return (
-
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
       <Navbar />
 
       {/* ── Main Header / Child Profile Selector ── */}
@@ -561,7 +561,7 @@ const ParentDashboard = () => {
       {/* ── Tab Switcher Menu ── */}
       <div className="max-w-7xl mx-auto px-6 mb-8">
         <div className="flex items-center gap-2 border-b border-white/10 pb-2 flex-wrap">
-
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}

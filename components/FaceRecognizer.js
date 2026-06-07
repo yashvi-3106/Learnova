@@ -70,9 +70,6 @@ export default function FaceRecognizer({ authUser }) {
     return stopAllMedia;
   }, [stopAllMedia]);
 
-  const [isOffline, setIsOffline] = useState(
-    typeof window !== "undefined" ? !navigator.onLine : false
-  );
 
   const MODEL_URL = "/models";
   const labels = fetchedLabels;
@@ -853,4 +850,5 @@ export default function FaceRecognizer({ authUser }) {
       )}
     </div>
   );
+}
 }
