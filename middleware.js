@@ -333,6 +333,7 @@ async function verifyIdToken(token) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken: token }),
+        signal: AbortSignal.timeout(5000),
       }
     );
 
