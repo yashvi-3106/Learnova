@@ -10,6 +10,9 @@ import {
   RefreshCw,
   Mail,
 } from "lucide-react";
+import ExportDropdown from "@/components/ui/ExportDropdown";
+import { exportAnalyticsCSV, exportAnalyticsPDF } from "@/utils/exportUtils";
+import { toast } from "react-hot-toast";
 
 /**
  * AttendanceRiskDashboard
@@ -17,8 +20,10 @@ import {
  * Displays at-risk students fetched from /api/analytics/attendance-risk.
  * Shows risk badge (At Risk / Warning / Good), attendance %, and trend arrow.
  * Allows one-click email notification to the student.
+ * Supports one-click CSV / PDF export of the currently-filtered data.
  *
  * Part of feat: AI-powered attendance pattern analysis (issue #2183)
+ * Export feature: issue #3528
  */
 
 const RISK_CONFIG = {
@@ -70,6 +75,7 @@ export default function AttendanceRiskDashboard() {
   const [filter, setFilter] = useState("all"); // all | at_risk | warning | good
   const [notifiedIds, setNotifiedIds] = useState(new Set());
   const [sendingId, setSendingId] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const fetchRiskData = useCallback(async () => {
     setLoading(true);
@@ -94,7 +100,6 @@ export default function AttendanceRiskDashboard() {
     if (notifiedIds.has(student.userId)) return;
     setSendingId(student.userId);
     try {
-      // EmailJS is called client-side using environment variables
       const emailjsServiceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
       const emailjsTemplateId =
         process.env.NEXT_PUBLIC_EMAILJS_ATTENDANCE_TEMPLATE_ID;
@@ -129,6 +134,36 @@ export default function AttendanceRiskDashboard() {
     data?.students?.filter((s) => filter === "all" || s.riskLevel === filter) ??
     [];
 
+  // Export handler — exports the currently-filtered student list
+  const handleExport = (format) => {
+    setIsExporting(true);
+    setTimeout(() => {
+      try {
+        const meta = {
+          className: "All Classes",
+          dateRange: "Last 28 days",
+          teacherName: "N/A",
+        };
+        const summary = {
+          totalStudents: data?.totalStudents,
+          atRiskCount: data?.atRiskCount,
+          warningCount: data?.warningCount,
+        };
+        if (format === "csv") {
+          exportAnalyticsCSV(filteredStudents, meta);
+        } else {
+          exportAnalyticsPDF(filteredStudents, meta, summary);
+        }
+        toast.success(`Exported as ${format.toUpperCase()}`);
+      } catch (err) {
+        console.error("Export failed:", err);
+        toast.error("Export failed. Please try again.");
+      } finally {
+        setIsExporting(false);
+      }
+    }, 300);
+  };
+
   if (loading) {
     return (
       <div className="space-y-3 animate-pulse">
@@ -150,7 +185,8 @@ export default function AttendanceRiskDashboard() {
         <button
           onClick={fetchRiskData}
           className="mt-3 text-xs underline opacity-70 hover:opacity-100"
-         aria-label="Action button">
+          aria-label="Retry loading attendance risk data"
+        >
           Retry
         </button>
       </div>
@@ -173,13 +209,28 @@ export default function AttendanceRiskDashboard() {
             </p>
           )}
         </div>
-        <button
-          onClick={fetchRiskData}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
-         aria-label="Action button">
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </button>
+
+        {/* Actions: Refresh + Export */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchRiskData}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+            aria-label="Refresh attendance risk data"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+
+          {/* Export dropdown — only active when data is loaded */}
+          {data && filteredStudents.length > 0 && (
+            <ExportDropdown
+              onExport={handleExport}
+              isExporting={isExporting}
+              label="Export"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 transition-colors"
+            />
+          )}
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -254,6 +305,7 @@ export default function AttendanceRiskDashboard() {
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 cursor-default"
                         : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10"
                     }`}
+                    aria-label={`Notify ${student.studentName} about attendance`}
                   >
                     <Mail className="w-3.5 h-3.5" />
                     {isSending
