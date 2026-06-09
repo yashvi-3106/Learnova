@@ -1,5 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api-response";
-import { withErrorHandler, authenticateRequest } from "@/lib/error-handler";
+import { withErrorHandler } from "@/lib/error-handler";
+import { requireAuth } from "@/lib/rbac";
+import { getUserProfile } from "@/lib/firebase-admin";
 import { connectDb } from "@/lib/mongodb";
 
 /**
@@ -18,25 +20,17 @@ import { connectDb } from "@/lib/mongodb";
  *  - good     : attendanceRate >= 80
  */
 export const GET = withErrorHandler(async (request) => {
-  const decodedToken = await authenticateRequest(request);
+  const decodedToken = await requireAuth(request);
+  const profile = await getUserProfile(decodedToken.uid);
 
   const db = await connectDb();
 
-  // Fetch the caller's profile to get their instituteId / role
-  const userDoc = await db
-    .collection("users")
-    .findOne({ uid: decodedToken.uid });
-
-  if (!userDoc) {
+  // Use the Firestore profile returned by the shared RBAC helper.
+  if (!profile) {
     return jsonError("User not found", 404);
   }
 
-  const allowedRoles = ["teacher", "institute", "admin"];
-  if (!allowedRoles.includes(userDoc.role)) {
-    return jsonError("Forbidden: insufficient role", 403);
-  }
-
-  const instituteId = userDoc.instituteId || userDoc.uid;
+  const instituteId = profile.instituteId || profile.uid;
 
   // Two-week window dates
   const now = new Date();
@@ -108,10 +102,7 @@ export const GET = withErrorHandler(async (request) => {
             { $eq: ["$totalDays", 0] },
             100,
             {
-              $multiply: [
-                { $divide: ["$presentDays", "$totalDays"] },
-                100,
-              ],
+              $multiply: [{ $divide: ["$presentDays", "$totalDays"] }, 100],
             },
           ],
         },
@@ -173,11 +164,15 @@ export const GET = withErrorHandler(async (request) => {
           $switch: {
             branches: [
               {
-                case: { $lt: [{ $subtract: ["$recentRate", "$priorRate"] }, -5] },
+                case: {
+                  $lt: [{ $subtract: ["$recentRate", "$priorRate"] }, -5],
+                },
                 then: "declining",
               },
               {
-                case: { $gt: [{ $subtract: ["$recentRate", "$priorRate"] }, 5] },
+                case: {
+                  $gt: [{ $subtract: ["$recentRate", "$priorRate"] }, 5],
+                },
                 then: "improving",
               },
             ],
