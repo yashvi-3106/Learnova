@@ -117,18 +117,10 @@ describe("POST /api/register - Authentication, Rollback, and Validation Security
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
+    if (data.ip) {
+      headers.set("x-forwarded-for", data.ip);
+    }
     return {
-      headers: {
-        get: vi.fn().mockImplementation((name) => {
-          if (name.toLowerCase() === "authorization") {
-            return authHeader;
-          }
-          if (name.toLowerCase() === "x-forwarded-for") {
-            return data.ip || "127.0.0.1";
-          }
-          return null;
-        }),
-      },
       formData: vi.fn().mockResolvedValue({
         get: (key) => data[key],
       }),
