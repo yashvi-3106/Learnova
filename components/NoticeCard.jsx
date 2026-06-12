@@ -134,6 +134,7 @@ const createPdfDownload = (notice) => {
     minute: "2-digit",
   });
 
+
   doc.text(`Author: ${notice.author || "Unknown"}`, margin, cursorY);
   doc.text(`Published: ${dateStr} at ${timeStr}`, margin + 62, cursorY);
 

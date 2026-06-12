@@ -331,6 +331,7 @@ const FAQ_ITEMS = [
 // --- Main Page Component ---
 
 export default function Page() {
+  const [hoveredRing, setHoveredRing] = useState(null);
   const [activeRole, setActiveRole] = useState("admins");
   const [openFaqIdx, setOpenFaqIdx] = useState(null);
 

@@ -240,16 +240,13 @@ export const DELETE = withErrorHandler(async (request) => {
 
   const validation = deleteParentStudentLinkSchema.safeParse(queryParams);
   if (!validation.success) {
-    return jsonError(
-      {
-        message: "Validation failed",
-        details: validation.error.issues.map((issue) => ({
-          path: issue.path.join("."),
-          message: issue.message,
-        })),
-      },
-      400
-    );
+    return jsonError({
+      message: "Validation failed",
+      details: (validation.error.errors || validation.error.issues || []).map((issue) => ({
+        path: issue.path ? issue.path.join(".") : "",
+        message: issue.message || "Invalid input",
+      })),
+    }, 400);
   }
 
   const { parentId, studentId } = validation.data;
