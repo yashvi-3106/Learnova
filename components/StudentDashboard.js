@@ -326,6 +326,24 @@ const [events] = useState([
   },
 ]);
 
+const [performanceData] = useState([
+  {
+    subject: "Mathematics",
+    currentScore: 88,
+    previousScore: 80,
+  },
+  {
+    subject: "Science",
+    currentScore: 92,
+    previousScore: 85,
+  },
+  {
+    subject: "Programming",
+    currentScore: 95,
+    previousScore: 90,
+  },
+]);
+
   useEffect(() => {
     const fetchGamification = async () => {
       try {
@@ -812,6 +830,50 @@ const generateRoadmap = () => {
         </div>
       ))}
     </div>
+  </div>
+</div>
+
+{/* Student Performance Comparison Dashboard */}
+<div className="max-w-7xl mx-auto mt-6 px-6">
+  <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+
+    <h2 className="text-xl font-bold text-white mb-4">
+      📊 Student Performance Comparison Dashboard
+    </h2>
+
+    <div className="grid md:grid-cols-3 gap-4">
+      {performanceData.map((item, index) => (
+        <div
+          key={index}
+          className="p-4 rounded-xl bg-white/5 border border-white/10"
+        >
+          <h3 className="text-white font-semibold">
+            {item.subject}
+          </h3>
+
+          <p className="text-blue-400 mt-2">
+            Current Score: {item.currentScore}%
+          </p>
+
+          <p className="text-gray-400">
+            Previous Score: {item.previousScore}%
+          </p>
+
+          <p
+            className={`mt-2 font-semibold ${
+              item.currentScore > item.previousScore
+                ? "text-green-400"
+                : "text-red-400"
+            }`}
+          >
+            {item.currentScore > item.previousScore
+              ? "📈 Improving"
+              : "📉 Needs Improvement"}
+          </p>
+        </div>
+      ))}
+    </div>
+
   </div>
 </div>
 
