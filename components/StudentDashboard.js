@@ -755,6 +755,36 @@ const generateRoadmap = () => {
         <AttendanceInsights recentActivity={recentActivity} />
       </div>
 
+      {/* Smart Attendance Improvement Suggestions */}
+      <div className="max-w-7xl mx-auto mt-6 px-6">
+        <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+          <h2 className="text-xl font-bold text-white mb-4">
+            🤖 Smart Attendance Improvement Suggestions
+          </h2>
+
+          {attendanceStats.percentage < 60 ? (
+            <ul className="space-y-3 text-red-300">
+              <li>⚠️ Your attendance is critically low. Try attending every upcoming class.</li>
+              <li>⏰ Enable daily reminders to avoid missing classes.</li>
+              <li>📅 Create a weekly study and attendance schedule.</li>
+              <li>🎯 Target at least 85% attendance over the next month.</li>
+            </ul>
+          ) : attendanceStats.percentage < 75 ? (
+            <ul className="space-y-3 text-yellow-300">
+              <li>📈 Your attendance can be improved with more consistency.</li>
+              <li>📝 Track your attendance progress every week.</li>
+              <li>⏰ Set alarms before your classes start.</li>
+              <li>🎯 Aim to increase your attendance above 90%.</li>
+            </ul>
+          ) : (
+            <div className="text-green-400">
+              🎉 Excellent work! Your attendance is strong.
+              Keep maintaining your consistency and punctuality.
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Engagement Score Section */}
       <div className="max-w-7xl mx-auto mt-8 px-6">
         <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
