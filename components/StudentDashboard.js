@@ -298,6 +298,34 @@ const StudentDashboard = () => {
     members: 12,
   },
 ]);
+
+const [events] = useState([
+  {
+    title: "Mathematics Class",
+    date: "10 June",
+    type: "Class",
+    color: "text-blue-400",
+  },
+  {
+    title: "Physics Assignment",
+    date: "12 June",
+    type: "Assignment",
+    color: "text-yellow-400",
+  },
+  {
+    title: "Mid-Term Examination",
+    date: "20 June",
+    type: "Exam",
+    color: "text-red-400",
+  },
+  {
+    title: "Summer Holiday",
+    date: "25 June",
+    type: "Holiday",
+    color: "text-green-400",
+  },
+]);
+
   useEffect(() => {
     const fetchGamification = async () => {
       try {
@@ -755,6 +783,38 @@ const generateRoadmap = () => {
         <AttendanceInsights recentActivity={recentActivity} />
       </div>
 
+      {/* Classroom Event Calendar */}
+<div className="max-w-7xl mx-auto mt-6 px-6">
+  <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+    <h2 className="text-xl font-bold text-white mb-4">
+      📅 Classroom Event Calendar
+    </h2>
+
+    <div className="space-y-3">
+      {events.map((event, index) => (
+        <div
+          key={index}
+          className="flex justify-between items-center p-4 rounded-xl bg-white/5 border border-white/10"
+        >
+          <div>
+            <h3 className="text-white font-semibold">
+              {event.title}
+            </h3>
+
+            <p className="text-sm text-gray-400">
+              {event.date}
+            </p>
+          </div>
+
+          <span className={`font-semibold ${event.color}`}>
+            {event.type}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
       {/* Smart Attendance Improvement Suggestions */}
       <div className="max-w-7xl mx-auto mt-6 px-6">
         <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
@@ -851,27 +911,6 @@ const generateRoadmap = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-const StatCard = ({ color, label, value }) => {
-  const styles = {
-    green:
-      "from-green-500/20 to-green-600/20 border-green-500/30 text-green-400",
-    red: "from-red-500/20 to-red-600/20 border-red-500/30 text-red-400",
-    yellow:
-      "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30 text-yellow-400",
-    blue: "from-blue-500/20 to-blue-600/20 border-blue-500/30 text-blue-400",
-  };
-
-  return (
-    <div
-      className={`bg-gradient-to-r ${styles[color]} border rounded-xl p-3 sm:p-4`}
-    >
-      <div className="text-[10px] sm:text-sm opacity-80">{label}</div>
-
-      <div className="text-base sm:text-xl font-bold">{value}</div>
     </div>
   );
 };
