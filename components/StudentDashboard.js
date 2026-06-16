@@ -344,6 +344,33 @@ const [performanceData] = useState([
   },
 ]);
 
+const [teacherFeedback] = useState([
+  {
+    subject: "Mathematics",
+    teacher: "Mr. Sharma",
+    rating: "⭐⭐⭐⭐⭐",
+    comment: "Excellent understanding of concepts and problem solving.",
+    recommendation: "Try advanced mathematical challenges.",
+    status: "Acknowledged",
+  },
+  {
+    subject: "Science",
+    teacher: "Mrs. Patel",
+    rating: "⭐⭐⭐⭐",
+    comment: "Good classroom participation and practical skills.",
+    recommendation: "Focus more on written explanations.",
+    status: "Pending",
+  },
+  {
+    subject: "Programming",
+    teacher: "Mr. Johnson",
+    rating: "⭐⭐⭐⭐⭐",
+    comment: "Shows excellent coding skills and creativity.",
+    recommendation: "Start contributing to real-world projects.",
+    status: "Acknowledged",
+  },
+]);
+
   useEffect(() => {
     const fetchGamification = async () => {
       try {
@@ -870,6 +897,57 @@ const generateRoadmap = () => {
               ? "📈 Improving"
               : "📉 Needs Improvement"}
           </p>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</div>
+
+{/* Teacher Feedback & Student Review System */}
+<div className="max-w-7xl mx-auto mt-6 px-6">
+  <div className="bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+
+    <h2 className="text-xl font-bold text-white mb-4">
+      📝 Teacher Feedback & Reviews
+    </h2>
+
+    <div className="grid md:grid-cols-3 gap-4">
+      {teacherFeedback.map((feedback, index) => (
+        <div
+          key={index}
+          className="p-4 rounded-xl bg-white/5 border border-white/10"
+        >
+          <h3 className="text-white font-semibold">
+            {feedback.subject}
+          </h3>
+
+          <p className="text-blue-400 text-sm">
+            Teacher: {feedback.teacher}
+          </p>
+
+          <p className="mt-2">
+            {feedback.rating}
+          </p>
+
+          <p className="text-gray-300 mt-2">
+            "{feedback.comment}"
+          </p>
+
+          <p className="text-yellow-400 mt-2 text-sm">
+            💡 {feedback.recommendation}
+          </p>
+
+          <button
+            className={`mt-3 px-3 py-2 rounded-lg text-sm font-semibold ${
+              feedback.status === "Acknowledged"
+                ? "bg-green-500/20 text-green-400"
+                : "bg-orange-500/20 text-orange-400"
+            }`}
+          >
+            {feedback.status}
+          </button>
+
         </div>
       ))}
     </div>
