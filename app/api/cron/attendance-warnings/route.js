@@ -56,57 +56,17 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
 }
 
 async function sendWarningEmails(emailsToSend) {
-  const hasEmailConfig =
-    process.env.EMAILJS_SERVICE_ID &&
-    process.env.EMAILJS_TEMPLATE_ID &&
-    process.env.EMAILJS_PUBLIC_KEY;
+  const dashboardUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://learnova.app";
 
-  if (!hasEmailConfig || emailsToSend.length === 0) {
-    return;
-  }
-
-  const sendEmail = async (emailData) => {
-    try {
-      const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: process.env.EMAILJS_SERVICE_ID,
-          template_id: process.env.EMAILJS_TEMPLATE_ID,
-          user_id: process.env.EMAILJS_PUBLIC_KEY,
-          template_params: emailData,
-        }),
-      });
-
-      if (!response.ok) {
-        let responseBody = "";
-        try {
-          responseBody = await response.text();
-        } catch {
-          // Ignore body parse failures and log status-based diagnostics.
-        }
-
-        console.error(
-          `[attendance-warnings] EmailJS request failed for ${emailData.to_email} with status ${response.status} ${response.statusText}${
-            responseBody ? `: ${responseBody}` : ""
-          }`
-        );
-      }
-    } catch (error) {
-      console.error(
-        `[attendance-warnings] Failed to send email to ${emailData.to_email}:`,
-        error
-      );
-    }
-  };
-
-  // Process emails in parallel chunks to prevent serverless function timeouts
-  const CHUNK_SIZE = 50;
-  for (let i = 0; i < emailsToSend.length; i += CHUNK_SIZE) {
-    const chunk = emailsToSend.slice(i, i + CHUNK_SIZE);
-    await Promise.allSettled(chunk.map(sendEmail));
+  for (const emailData of emailsToSend) {
+    sendLowAttendanceWarning({
+      email: emailData.to_email,
+      name: emailData.to_name,
+      attendancePercentage: emailData.attendance_percentage,
+      threshold: emailData.threshold,
+      dashboardUrl,
+    });
   }
 }
 

@@ -59,6 +59,7 @@ import AttendanceInsights from "@/components/AttendanceInsights";
 import ExportDropdown from "@/components/ui/ExportDropdown";
 import { exportToCSV, exportToPDF } from "@/utils/exportUtils";
 import { toast } from "react-hot-toast";
+import QuickNotes from "@/components/productivity/QuickNotes";
 
 const AttendanceHeatmap = dynamic(() => import("./AttendanceHeatmap"), {
   ssr: false,
@@ -1051,6 +1052,8 @@ const generateRoadmap = () => {
           </div>
         </div>
       )}
+      
+      <QuickNotes />
     </div>
   );
 };

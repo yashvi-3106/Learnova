@@ -22,7 +22,6 @@ const CLOCK_TOLERANCE_SECONDS = 60;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const RATE_LIMIT_MAX = 5;
 
-
 // Dev-only in-memory fallback (never used in production)
 const devRateLimitMap = new Map();
 
@@ -34,9 +33,7 @@ const AUTH_RATE_LIMITED_PATHS = [
   "/api/auth/reset-password",
   "/api/auth/verify-email",
   "/api/auth/verify-otp",
-  "/api/auth/verify-otp/callback",
 ];
-
 
 const PUBLIC_PATHS = ["/activity", "/auth", "/verify"];
 
@@ -479,16 +476,18 @@ export async function middleware(request) {
     }
   }
 
-  const tokenFromCookie = request.cookies.get("authToken")?.value || null;
-  if (tokenFromCookie) {
-    try {
-      validateCsrfOriginAndReferer(request);
-      validateCsrfRequest(request);
-    } catch (error) {
-      return NextResponse.json(
-        { error: error.message || "Forbidden: invalid CSRF request" },
-        { status: error.statusCode || 403 }
-      );
+  if (pathname.startsWith("/api/") && isUnsafeMethod) {
+    const tokenFromCookie = request.cookies.get("authToken")?.value || null;
+    if (tokenFromCookie) {
+      try {
+        validateCsrfOriginAndReferer(request);
+        validateCsrfRequest(request);
+      } catch (error) {
+        return NextResponse.json(
+          { error: error.message || "Forbidden: invalid CSRF request" },
+          { status: error.statusCode || 403 }
+        );
+      }
     }
   }
 
@@ -653,4 +652,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox-.*).*)",
   ],
 };
-        

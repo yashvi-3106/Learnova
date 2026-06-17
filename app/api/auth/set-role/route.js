@@ -81,6 +81,13 @@ export const POST = withValidation(
       createdAt: new Date().toISOString(),
       emailVerified: decodedToken.email_verified || false,
       lastLogin: new Date().toISOString(),
+      emailPreferences: {
+        attendanceAlerts: true,
+        weeklyDigest: true,
+        lowAttendanceWarning: true,
+        passwordChanges: true,
+        bulkAnnouncements: true,
+      },
     };
 
     if (role === "institute" && instituteName) {
