@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 export default function LazyImage({
   src,
@@ -8,6 +9,8 @@ export default function LazyImage({
   className = "",
   skeletonClassName = "",
   fallbackSrc = "/assets/default-fallback.png",
+  width,
+  height,
   ...props
 }) {
   const [loaded, setLoaded] = useState(false);
@@ -21,6 +24,8 @@ export default function LazyImage({
     setLoaded(false);
     setError(false);
   }, [src]);
+
+  const imageSrc = error ? fallbackSrc : (src || fallbackSrc);
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
