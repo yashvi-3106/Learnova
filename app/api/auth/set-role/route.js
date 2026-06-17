@@ -80,6 +80,13 @@ export const POST = withValidation(
       createdAt: new Date().toISOString(),
       emailVerified: decodedToken.email_verified || false,
       lastLogin: new Date().toISOString(),
+      emailPreferences: {
+        attendanceAlerts: true,
+        weeklyDigest: true,
+        lowAttendanceWarning: true,
+        passwordChanges: true,
+        bulkAnnouncements: true,
+      },
     };
 
     if (role === "institute" && instituteName) {
@@ -177,6 +184,15 @@ export const POST = withValidation(
         500
       );
     }
+
+    const dashboardUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://learnova.app";
+    const { sendWelcomeEmail } = await import("@/services/emailService");
+    sendWelcomeEmail({
+      email: decodedToken.email,
+      name: fullName,
+      dashboardUrl,
+    });
 
     return jsonSuccess({ userProfile }, 201);
   }),
