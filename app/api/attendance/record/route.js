@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { AppError } from "@/lib/errors";
 import { recordAttendanceSchema, withValidation } from "@/lib/validations";
 import { AttendanceService } from "@/lib/services/attendanceService";
+import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
 export const POST = withErrorHandler(
   withValidation(
@@ -59,18 +60,15 @@ export const POST = withErrorHandler(
         token
       );
 
-      if (sagaResult.context._alreadyRecorded) {
-        return jsonSuccess({ alreadyRecorded: true }, 200);
-      }
+    emitWebhookEvent("attendance.recorded", {
+      studentId: userId,
+      studentName,
+      email,
+      confidence: normalizedConfidence,
+      date: normalizedDate,
+      recordedBy: token.uid,
+    });
 
-      if (!sagaResult.success) {
-        console.error(
-          `[attendance] Saga failed at step "${sagaResult.failedStep}" for user ${userId}: ${sagaResult.error}`
-        );
-        return jsonError("Attendance recording failed", 502);
-      }
-
-      return jsonSuccess({ alreadyRecorded: false }, 201);
-    }
-  )
+    return jsonSuccess({ alreadyRecorded: false }, 201);
+  })
 );

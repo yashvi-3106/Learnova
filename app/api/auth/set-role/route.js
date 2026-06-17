@@ -10,6 +10,7 @@ import { executeSaga } from "@/lib/transactionCoordinator";
 
 import { withValidation } from "@/lib/validations/withValidation";
 import { setRoleSchema } from "@/lib/validations/auth";
+import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
 export const POST = withValidation(
   setRoleSchema,
@@ -185,13 +186,12 @@ export const POST = withValidation(
       );
     }
 
-    const dashboardUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "https://learnova.app";
-    const { sendWelcomeEmail } = await import("@/services/emailService");
-    sendWelcomeEmail({
-      email: decodedToken.email,
-      name: fullName,
-      dashboardUrl,
+    emitWebhookEvent("user.created", {
+      uid: userProfile.uid,
+      email: userProfile.email,
+      fullName: userProfile.fullName,
+      role: userProfile.role,
+      instituteName: userProfile.instituteName || null,
     });
 
     return jsonSuccess({ userProfile }, 201);

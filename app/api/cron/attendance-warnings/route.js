@@ -5,7 +5,7 @@ import { connectDb } from "@/lib/mongodb";
 import { initializeFirebase } from "@/lib/firebase-admin";
 import { evaluateStudentAttendance } from "@/lib/attendanceUtils";
 import { publishEvent } from "@/lib/ssePublisher";
-import { sendLowAttendanceWarning } from "@/services/emailService";
+import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -265,6 +265,10 @@ export async function GET(request) {
     }
 
     await sendWarningEmails(emailsToSend);
+
+    emitWebhookEvent("warning.issued", {
+      totalWarnings,
+    });
 
     return NextResponse.json({
       success: true,
