@@ -4,6 +4,8 @@ import { authorizeCronRequest } from "@/lib/cronAuth";
 import { connectDb } from "@/lib/mongodb";
 import { initializeFirebase } from "@/lib/firebase-admin";
 import { evaluateStudentAttendance } from "@/lib/attendanceUtils";
+import { publishEvent } from "@/lib/ssePublisher";
+import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -53,41 +55,18 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
   return new Set(checks.filter(Boolean));
 }
 
-
 async function sendWarningEmails(emailsToSend) {
-  const hasEmailConfig =
-    process.env.EMAILJS_SERVICE_ID &&
-    process.env.EMAILJS_TEMPLATE_ID &&
-    process.env.EMAILJS_PUBLIC_KEY;
+  const dashboardUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://learnova.app";
 
-  if (!hasEmailConfig || emailsToSend.length === 0) {
-    return;
-  }
-
-  const sendEmail = async (emailData) => {
-    try {
-      await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: process.env.EMAILJS_SERVICE_ID,
-          template_id: process.env.EMAILJS_TEMPLATE_ID,
-          user_id: process.env.EMAILJS_PUBLIC_KEY,
-          template_params: emailData,
-        }),
-      });
-    } catch (error) {
-      console.error(`Failed to send email to ${emailData.to_email}:`, error);
-    }
-  };
-
-  // Process emails in parallel chunks to prevent serverless function timeouts
-  const CHUNK_SIZE = 50;
-  for (let i = 0; i < emailsToSend.length; i += CHUNK_SIZE) {
-    const chunk = emailsToSend.slice(i, i + CHUNK_SIZE);
-    await Promise.allSettled(chunk.map(sendEmail));
+  for (const emailData of emailsToSend) {
+    sendLowAttendanceWarning({
+      email: emailData.to_email,
+      name: emailData.to_name,
+      attendancePercentage: emailData.attendance_percentage,
+      threshold: emailData.threshold,
+      dashboardUrl,
+    });
   }
 }
 
@@ -105,10 +84,9 @@ export async function GET(request) {
     // Ensure the warning_logs collection has a compound index on (userId, createdAt)
     // so the cooldown query does not trigger a full collection scan
     try {
-      await db.collection("warning_logs").createIndex(
-        { userId: 1, createdAt: -1 },
-        { background: true }
-      );
+      await db
+        .collection("warning_logs")
+        .createIndex({ userId: 1, createdAt: -1 }, { background: true });
     } catch {
       // Index may already exist
     }
@@ -139,6 +117,17 @@ export async function GET(request) {
       if (notificationsToInsert.length === 0) return;
       await db.collection("notifications").insertMany(notificationsToInsert);
       await db.collection("warning_logs").insertMany(warningLogsToInsert);
+      for (const notif of notificationsToInsert) {
+        publishEvent("notifications", "warning", {
+          _id: notif._id?.toString?.() || notif._id,
+          recipientId: notif.userId,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          read: false,
+          createdAt: notif.createdAt?.toISOString?.() || new Date().toISOString(),
+        }).catch(() => {});
+      }
       notificationsToInsert = [];
       warningLogsToInsert = [];
     }
@@ -262,9 +251,24 @@ export async function GET(request) {
     if (notificationsToInsert.length > 0) {
       await db.collection("notifications").insertMany(notificationsToInsert);
       await db.collection("warning_logs").insertMany(warningLogsToInsert);
+      for (const notif of notificationsToInsert) {
+        publishEvent("notifications", "warning", {
+          _id: notif._id?.toString?.() || notif._id,
+          recipientId: notif.userId,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          read: false,
+          createdAt: notif.createdAt?.toISOString?.() || new Date().toISOString(),
+        }).catch(() => {});
+      }
     }
 
     await sendWarningEmails(emailsToSend);
+
+    emitWebhookEvent("warning.issued", {
+      totalWarnings,
+    });
 
     return NextResponse.json({
       success: true,

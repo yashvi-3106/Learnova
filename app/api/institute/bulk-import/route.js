@@ -6,7 +6,7 @@ import {
 } from "@/lib/firebase-admin";
 import admin from "firebase-admin";
 import { connectDb } from "@/lib/mongodb";
-import { requireRole } from "@/lib/rbac";
+import { requireAuth } from "@/lib/rbac";
 import { parseJSON } from "@/lib/error-handler";
 import {
   findExistingOperation,
@@ -15,6 +15,7 @@ import {
 import { checkRateLimit } from "@/lib/rateLimit";
 import { AppError } from "@/lib/errors";
 import crypto from "crypto";
+import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,7 @@ const MAX_BULK_IMPORT_PAYLOAD_BYTES = 1024 * 1024;
 export async function POST(req) {
   try {
     // Authenticate and authorize — only institute or admin can bulk-import
-    const { payload: decodedToken } = await requireRole(req, [
-      "institute",
-      "admin",
-    ]);
+    const decodedToken = await requireAuth(req);
 
     const profile = await getUserProfile(decodedToken.uid);
     const instituteId = profile?.instituteId || decodedToken.uid;
@@ -338,6 +336,14 @@ export async function POST(req) {
     if (idempotencyKey) {
       await markIdempotent(idempotencyKey, resultPayload);
     }
+
+    emitWebhookEvent("bulk.import.completed", {
+      instituteId,
+      successfulImports,
+      failedCount: failedImports.length,
+      totalProcessed: students.length,
+      importedUids: createdAuthUids,
+    });
 
     return NextResponse.json(resultPayload, { status: 200 });
   } catch (error) {

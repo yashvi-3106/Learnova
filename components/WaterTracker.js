@@ -15,11 +15,19 @@ export default function WaterTracker() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = safeLocalStorageGet(
-      "learnova-wellness-water",
-      DEFAULT_WATER_GLASSES
-    );
-    setGlasses(normalizeWaterGlasses(saved, DEFAULT_WATER_GLASSES, goal));
+    const savedDate = safeLocalStorageGet("learnova-wellness-water-date", "");
+    const today = new Date().toLocaleDateString();
+    if (savedDate !== today) {
+      safeLocalStorageSet("learnova-wellness-water", DEFAULT_WATER_GLASSES);
+      safeLocalStorageSet("learnova-wellness-water-date", today);
+      setGlasses(DEFAULT_WATER_GLASSES);
+    } else {
+      const saved = safeLocalStorageGet(
+        "learnova-wellness-water",
+        DEFAULT_WATER_GLASSES
+      );
+      setGlasses(normalizeWaterGlasses(saved, DEFAULT_WATER_GLASSES, goal));
+    }
   }, [goal]);
 
   useEffect(() => {
@@ -108,14 +116,16 @@ export default function WaterTracker() {
             type="button"
             onClick={addWater}
             className="flex items-center justify-center gap-2 rounded-3xl bg-slate-900 text-white px-4 py-3 text-sm font-semibold transition hover:bg-slate-800"
-           aria-label="Action button">
+            aria-label="Action button"
+          >
             <ArrowUpRight className="h-4 w-4" /> Add Water
           </button>
           <button
             type="button"
             onClick={removeWater}
             className="flex items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-           aria-label="Action button">
+            aria-label="Action button"
+          >
             <ArrowDownRight className="h-4 w-4" /> Remove Glass
           </button>
         </div>
