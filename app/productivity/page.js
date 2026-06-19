@@ -249,7 +249,8 @@ const AcademicEligibilityCard = ({ isDark }) => {
         <button
           onClick={handleCheck}
           className="w-full rounded-xl bg-cyan-500 hover:bg-cyan-400 transition-colors px-3 py-1.5 text-sm font-semibold text-slate-900"
-         aria-label="Action button">
+          aria-label="Action button"
+        >
           Check Eligibility
         </button>
 
@@ -259,7 +260,7 @@ const AcademicEligibilityCard = ({ isDark }) => {
   );
 };
 export default function ProductivityPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [mode, setMode] = useState("focus");
@@ -874,6 +875,16 @@ export default function ProductivityPage() {
   if (!mounted) {
     return null;
   }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (   ← this is the existing line 879, stays as-is
 
   return (
     <div

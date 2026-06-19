@@ -1,56 +1,79 @@
 import { NextResponse } from "next/server";
-import { queueEmail } from "@/services/emailService";
-import { getBulkAnnouncementTemplate } from "@/lib/email/templates";
-import { requireAuth } from "@/lib/rbac";
+import { withErrorHandler } from "@/lib/error-handler";
+import { requireRole } from "@/lib/rbac";
+import { AppError } from "@/lib/errors";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { sendBulkAnnouncement } from "@/services/emailService";
 import { connectDb } from "@/lib/mongodb";
-import { withErrorHandler, parseJSON } from "@/lib/error-handler";
+
+export const dynamic = "force-dynamic";
 
 export const POST = withErrorHandler(async (request) => {
-  // Only admins can send bulk emails
-  const decodedToken = await requireAuth(request, { roles: ["admin", "institute"] });
+  const { payload: decodedToken } = await requireRole(request, [
+    "admin",
+    "institute",
+  ]);
+  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const rateLimitResult = await checkRateLimit(
+    `email_send_${ip}_${decodedToken.uid}`
+  );
+  if (!rateLimitResult.allowed) {
+    throw new AppError("Too many requests. Please slow down.", 429);
+  }
 
-  const body = await parseJSON(request);
-  const { subject, bodyHtml, bodyText, audience } = body;
+  const { subject, body, recipientRole, targetIds } = await request.json();
 
-  if (!subject || !bodyHtml) {
-    return NextResponse.json({ success: false, message: "Missing required fields: subject, bodyHtml" }, { status: 400 });
+  if (!subject || !body) {
+    throw new AppError("Subject and body are required", 400);
   }
 
   const db = await connectDb();
-  
-  // Find users based on audience
-  let query = {};
-  if (audience === "parents") {
-    query.role = "parent";
-  } else if (audience === "students") {
-    query.role = "student";
-  } else if (audience === "all") {
-    query.role = { $in: ["parent", "student", "teacher"] };
-  } else {
-    return NextResponse.json({ success: false, message: "Invalid audience" }, { status: 400 });
+  const query = {};
+
+  if (targetIds && Array.isArray(targetIds)) {
+    query.uid = { $in: targetIds };
+  } else if (recipientRole) {
+    query.role = recipientRole;
   }
 
-  // Handle user email preferences
-  query["notifications.bulkAnnouncements"] = { $ne: false };
-
-  const users = await db.collection("users").find(query, { projection: { email: 1, name: 1 } }).toArray();
-
-  if (users.length === 0) {
-    return NextResponse.json({ success: true, message: "No users matched the audience criteria." });
+  if (decodedToken.role !== "admin") {
+    query.instituteId = decodedToken.instituteId || decodedToken.uid;
   }
 
-  const template = getBulkAnnouncementTemplate(subject, bodyHtml, bodyText);
+  const recipients = await db.collection("users").find(query).toArray();
 
-  // Queue emails
-  for (const user of users) {
-    if (user.email) {
-      await queueEmail(user.email, template, "announcement");
-    }
+  if (recipients.length === 0) {
+    throw new AppError("No recipients found matching the criteria", 404);
+  }
+
+  const senderName =
+    decodedToken.name || decodedToken.fullName || decodedToken.email;
+  const dashboardUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://learnova.app";
+  const instituteName =
+    decodedToken.instituteName || decodedToken.instituteId || "Learnova";
+
+  let sentCount = 0;
+  for (const recipient of recipients) {
+    if (!recipient.email) continue;
+    const prefs = recipient.emailPreferences || {};
+    if (prefs.bulkAnnouncements === false) continue;
+
+    sendBulkAnnouncement({
+      email: recipient.email,
+      name: recipient.name || recipient.fullName || "User",
+      subject,
+      body,
+      senderName,
+      instituteName,
+      dashboardUrl,
+    });
+    sentCount++;
   }
 
   return NextResponse.json({
     success: true,
-    message: `Successfully queued ${users.length} emails.`,
-    count: users.length
+    recipientsFound: recipients.length,
+    emailsQueued: sentCount,
   });
 });
