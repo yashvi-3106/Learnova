@@ -1023,6 +1023,25 @@ const generateRoadmap = () => {
         <StudentAchievementsPanel />
       </div>
 
+      {/* Gamification System */}
+      <div className="max-w-7xl mx-auto mt-8 px-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <span className="text-2xl">🎮</span> Gamification & Progress
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-6">
+            <StreakCounter currentStreak={attendancePerformance.streakDays} />
+            <XpProgressBar 
+              currentLevel={gamificationData?.currentLevel ?? 1} 
+              currentXp={gamificationData?.currentXp ?? 0} 
+            />
+          </div>
+          <div>
+            <BadgeGallery unlockedBadges={gamificationData?.unlockedBadges ?? []} />
+          </div>
+        </div>
+      </div>
+
       {/* Adaptive Content Sections */}
       {skillPath === "advanced" && (
         <div className="max-w-7xl mx-auto mt-6 px-6">
