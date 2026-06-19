@@ -86,6 +86,7 @@ import { useCurriculum } from "@/hooks/useCurriculum";
 import { apiFetch } from "@/lib/apiClient";
 import { syncOfflineQueue, getPendingRecordsCount } from "@/services/offlineSyncQueue";
 import { auth } from "@/lib/firebaseConfig";
+import AbsentSummaryModal from "./dashboard/AbsentSummaryModal";
 
 const AttendanceTrendsChart = dynamic(
   () => import("@/components/charts/AttendanceTrendsChart"),
@@ -131,6 +132,7 @@ const TeacherDashboard = () => {
   const [allRequests, setAllRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState(null);
+  const [showAbsentSummaryModal, setShowAbsentSummaryModal] = useState(false);
   const pendingRequests = useMemo(() => {
     return attendanceRequests.filter((req) => req.status === "pending");
   }, [attendanceRequests]);
@@ -1080,6 +1082,36 @@ const TeacherDashboard = () => {
                   </div>
                 </div>
               </button>
+
+              <button 
+                onClick={() => setShowAbsentSummaryModal(true)}
+                className="w-full bg-gradient-to-r from-indigo-600/20 to-indigo-600/20 hover:from-indigo-600/30 hover:to-indigo-600/30 border border-indigo-500/30 text-foreground dark:text-white p-3 rounded-xl transition-colors text-left" 
+                aria-label="Action button">
+                <div className="flex items-center space-x-3">
+                  <Sparkles className="w-5 h-5 text-indigo-400" />
+                  <div>
+                    <div className="font-medium">AI Lecture Summary</div>
+                    <div className="text-sm text-muted-foreground dark:text-gray-400">
+                      Send notes to absent students
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleExport('csv')}
+                className="w-full bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 border border-purple-500/30 text-foreground dark:text-white p-3 rounded-xl transition-colors text-left"
+               aria-label="Action button">
+                <div className="flex items-center space-x-3">
+                  <Download className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <div className="font-medium">Export Reports</div>
+                    <div className="text-sm text-muted-foreground dark:text-gray-400">
+                      CSV format (Instant Download)
+                    </div>
+                  </div>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -1198,6 +1230,14 @@ const TeacherDashboard = () => {
           <AttendanceRiskDashboard />
         </div>
       </div>
+
+      {showAbsentSummaryModal && (
+        <AbsentSummaryModal
+          isOpen={showAbsentSummaryModal}
+          onClose={() => setShowAbsentSummaryModal(false)}
+          absentStudents={studentAttendanceData.filter(s => s.status === "absent")}
+        />
+      )}
     </div>
   );
 
