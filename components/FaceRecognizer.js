@@ -7,7 +7,7 @@ import { recordAttendance } from "@/services/attendanceService";
 import { analytics } from "@/lib/firebaseConfig";
 import { logEvent } from "firebase/analytics";
 import { getAverageEAR } from "@/utils/livenessUtils";
-import { syncAttendanceQueue } from "@/lib/syncService";
+import { syncOfflineQueue, getPendingRecordsCount } from "@/services/offlineSyncQueue";
 
 const MIN_CONFIDENCE_TO_RECORD = 60;
 const EAR_THRESHOLD = 0.25;
@@ -85,7 +85,7 @@ export default function FaceRecognizer({ authUser }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleOnline = () => {
+    const handleOnline = async () => {
       if (!isMounted.current) return;
       setIsOffline(false);
       setAttendanceState((prev) => {
@@ -95,7 +95,30 @@ export default function FaceRecognizer({ authUser }) {
         }
         return prev;
       });
-      syncAttendanceQueue();
+      
+      try {
+        const count = await getPendingRecordsCount();
+        if (count > 0 && authUser) {
+          const token = await authUser.getIdToken();
+          await syncOfflineQueue(async (record) => {
+            try {
+              const res = await fetch("/api/attendance/record", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(record),
+              });
+              return res.ok;
+            } catch (e) {
+              return false;
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Offline sync error:", err);
+      }
     };
     const handleOffline = () => {
       if (!isMounted.current) return;
