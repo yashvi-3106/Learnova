@@ -4,6 +4,8 @@ import { authorizeCronRequest } from "@/lib/cronAuth";
 import { connectDb } from "@/lib/mongodb";
 import { initializeFirebase } from "@/lib/firebase-admin";
 import { evaluateStudentAttendance } from "@/lib/attendanceUtils";
+import { enqueue, JOB_TYPES } from "@/lib/queue";
+import { logger } from "@/lib/logger";
 import { publishEvent } from "@/lib/ssePublisher";
 import { emitWebhookEvent } from "@/lib/webhook/dispatcher";
 
@@ -54,6 +56,7 @@ async function getRecentWarningUserIds(db, userIds, cooldownDate) {
 
   return new Set(checks.filter(Boolean));
 }
+
 
 async function sendWarningEmails(emailsToSend) {
   const dashboardUrl =
@@ -264,7 +267,24 @@ export async function GET(request) {
       }
     }
 
-    await sendWarningEmails(emailsToSend);
+    if (emailsToSend.length > 0) {
+      try {
+        const jobId = await enqueue(JOB_TYPES.SEND_BULK_EMAILS, {
+          emails: emailsToSend,
+        });
+        logger.info("[attendance-warnings] Queued bulk email job", {
+          jobId,
+          emailCount: emailsToSend.length,
+        });
+      } catch (queueErr) {
+        logger.error(
+          "[attendance-warnings] Failed to queue bulk email job",
+          {
+            error: queueErr.message,
+          }
+        );
+      }
+    }
 
     emitWebhookEvent("warning.issued", {
       totalWarnings,
